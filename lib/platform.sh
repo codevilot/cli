@@ -57,3 +57,23 @@ clipboard_command() {
         printf 'xsel --clipboard --input'
     fi
 }
+
+browser_open_command() {
+    [[ "${CODEVILOT_DISABLE_BROWSER_OPEN:-}" == "1" ]] && return 0
+
+    if is_macos && command -v open >/dev/null 2>&1; then
+        printf 'open'
+    elif command -v wslview >/dev/null 2>&1; then
+        printf 'wslview'
+    elif command -v xdg-open >/dev/null 2>&1; then
+        printf 'xdg-open'
+    fi
+}
+
+open_url() {
+    local url="$1"
+    local opener
+    opener="$(browser_open_command)"
+    [[ -n "$opener" ]] || return 1
+    "$opener" "$url" >/dev/null 2>&1
+}

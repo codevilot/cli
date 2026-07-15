@@ -77,9 +77,10 @@ setup_case() {
     PATH="$MOCK_BIN:/usr/bin:/bin:/usr/sbin:/sbin"
     TMPDIR="$CASE_DIR/tmp"
     CODEVILOT_RAW_BASE_URL="https://mock.local/codevilot"
+    BROWSER_OPEN_LOG="$CASE_DIR/browser-open.log"
     CODEVILOT_DISABLE_CLIPBOARD=1
     unset CODEVILOT_TTY_INPUT_FILE CODEVILOT_TTY_OUTPUT_FILE CODEVILOT_TTY_PATH SSH_MOCK_MODE
-    export PATH TMPDIR CODEVILOT_RAW_BASE_URL CODEVILOT_DISABLE_CLIPBOARD
+    export PATH TMPDIR CODEVILOT_RAW_BASE_URL CODEVILOT_DISABLE_CLIPBOARD BROWSER_OPEN_LOG
     cd "$CASE_WORK" || exit 1
 }
 
@@ -124,6 +125,14 @@ source_file="$MOCK_RAW_ROOT/$relative"
 [[ -f "$source_file" ]] || exit 22
 cp "$source_file" "$destination"
 EOF
+
+    cat >"$bin_dir/xdg-open" <<'EOF'
+#!/usr/bin/env bash
+set -u
+printf '%s\n' "${1:-}" >>"$BROWSER_OPEN_LOG"
+EOF
+    cp "$bin_dir/xdg-open" "$bin_dir/open"
+    cp "$bin_dir/xdg-open" "$bin_dir/wslview"
 
     cat >"$bin_dir/ssh-keygen" <<'EOF'
 #!/usr/bin/env bash
@@ -258,7 +267,7 @@ fi
 exit 0
 EOF
 
-    chmod +x "$bin_dir/curl" "$bin_dir/ssh-keygen" "$bin_dir/ssh" "$bin_dir/git"
+    chmod +x "$bin_dir/curl" "$bin_dir/xdg-open" "$bin_dir/open" "$bin_dir/wslview" "$bin_dir/ssh-keygen" "$bin_dir/ssh" "$bin_dir/git"
 }
 
 run_entry() {
@@ -357,11 +366,12 @@ test_github_ssh_local_scope_outside_git_skips_zero() {
 test_github_ssh_interactive_configures_author_by_default() {
     setup_case "github-ssh-author-default"
     create_repo "$CASE_WORK"
-    printf '\nn\n\ncodevilot\n\n' >"$TTY_INPUT"
+    printf '\n\nn\n\ncodevilot\n\n' >"$TTY_INPUT"
     CODEVILOT_TTY_INPUT_FILE="$TTY_INPUT" CODEVILOT_TTY_OUTPUT_FILE="$TTY_OUTPUT" run_entry github-ssh --alias github-codevilot --email namhundred@naver.com >/dev/null
     assert_file_contains "$CASE_WORK/.git/config.mock" "user.name=codevilot"
     assert_file_contains "$CASE_WORK/.git/config.mock" "user.email=namhundred@naver.com"
     assert_file_contains "$TTY_OUTPUT" "Configure commit author now? [Y/n]"
+    assert_file_contains "$BROWSER_OPEN_LOG" "https://github.com/settings/keys"
 }
 
 test_ssh_failure_nonzero() {
@@ -425,7 +435,7 @@ test_existing_key_interactive_menu() {
     mkdir -p "$HOME/.ssh"
     printf 'ORIGINAL PRIVATE\n' >"$HOME/.ssh/id_ed25519_codevilot"
     printf 'ssh-ed25519 ORIGINAL user@example.com\n' >"$HOME/.ssh/id_ed25519_codevilot.pub"
-    printf '1\nn\nn\n' >"$TTY_INPUT"
+    printf '1\nn\nn\nn\n' >"$TTY_INPUT"
     CODEVILOT_TTY_INPUT_FILE="$TTY_INPUT" CODEVILOT_TTY_OUTPUT_FILE="$TTY_OUTPUT" run_entry github-ssh --alias github-codevilot --email user@example.com >/dev/null 2>"$CASE_DIR/err"
     assert_file_contains "$CASE_DIR/err" "Use existing key"
     assert_file_contains "$HOME/.ssh/id_ed25519_codevilot.pub" "ORIGINAL"

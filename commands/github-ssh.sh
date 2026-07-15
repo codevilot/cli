@@ -345,6 +345,7 @@ github_ssh_write_config() {
 github_ssh_print_public_key() {
     local public_key="$1"
     local clip
+    local github_keys_url="https://github.com/settings/keys"
 
     if [[ "$DRY_RUN" == "1" ]]; then
         printf '[dry-run] would show public key from %s\n' "$public_key"
@@ -355,7 +356,7 @@ github_ssh_print_public_key() {
 
     printf '\n'
     ui_step "3" "3" "Register this public key in GitHub"
-    ui_status "Open" "https://github.com/settings/keys"
+    ui_status "Open" "$github_keys_url"
     ui_status "Click" "New SSH key"
     ui_status "Title" "$(hostname 2>/dev/null || printf codevilot)-${GITHUB_SSH_ALIAS}"
     ui_status "Key type" "Authentication Key"
@@ -365,6 +366,12 @@ github_ssh_print_public_key() {
     printf '\n\n'
     cat "$public_key"
     printf '\n'
+
+    if [[ "$GITHUB_SSH_NON_INTERACTIVE" != "1" && -n "$(browser_open_command)" ]]; then
+        if confirm "Open GitHub SSH keys page in your browser?" "y"; then
+            open_url "$github_keys_url" || warn "Could not open browser. Open this URL manually: $github_keys_url"
+        fi
+    fi
 
     clip="$(clipboard_command)"
     if [[ -n "$clip" && "$GITHUB_SSH_NON_INTERACTIVE" != "1" ]]; then
