@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-: "${SCRIPT_DIR:?SCRIPT_DIR must be set by cli.sh}"
+: "${SCRIPT_DIR:?SCRIPT_DIR must be set by entry.sh}"
 
 # shellcheck source=../lib/common.sh
 . "$SCRIPT_DIR/lib/common.sh"
@@ -10,8 +10,7 @@
 github_ssh_usage() {
     cat <<'EOF'
 Usage:
-  codevilot github-ssh [options]
-  ./cli.sh github-ssh [options]
+  curl -fsSL https://raw.githubusercontent.com/codevilot/cli/main/entry.sh | bash -s -- github-ssh [options]
 
 Configure a personal GitHub SSH identity.
 
@@ -215,8 +214,7 @@ github_ssh_prepare_key() {
 2. Enter another key path
 3. Cancel
 EOF
-            printf 'Choose [1-3]: ' >&2
-            IFS= read -r choice || die "Canceled"
+            choice="$(read_from_tty "Choose [1-3]: ")" || die "Canceled"
             choice="$(trim "$choice")"
             case "$choice" in
                 1)

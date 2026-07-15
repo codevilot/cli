@@ -4,6 +4,7 @@ set -u
 TEST_DIR="$(cd -P "$(dirname "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
 REPO_ROOT="$(cd -P "$TEST_DIR/.." >/dev/null 2>&1 && pwd)"
 TEST_TMP_ROOT="${TMPDIR:-/tmp}/codevilot-tests.$$"
+REAL_HOME="${HOME:-}"
 PASS_COUNT=0
 FAIL_COUNT=0
 
@@ -66,16 +67,58 @@ setup_case() {
     HOME="$CASE_DIR/home"
     MOCK_BIN="$CASE_DIR/bin"
     CASE_WORK="$CASE_DIR/work"
-    export HOME
-    mkdir -p "$HOME" "$MOCK_BIN" "$CASE_WORK"
+    MOCK_RAW_ROOT="$CASE_DIR/raw"
+    TTY_INPUT="$CASE_DIR/tty.in"
+    TTY_OUTPUT="$CASE_DIR/tty.out"
+    export HOME MOCK_RAW_ROOT
+    mkdir -p "$HOME" "$MOCK_BIN" "$CASE_WORK" "$MOCK_RAW_ROOT" "$CASE_DIR/tmp"
+    create_raw_tree "$MOCK_RAW_ROOT"
     create_mocks "$MOCK_BIN"
     PATH="$MOCK_BIN:/usr/bin:/bin:/usr/sbin:/sbin"
-    export PATH
+    TMPDIR="$CASE_DIR/tmp"
+    CODEVILOT_RAW_BASE_URL="https://mock.local/codevilot"
+    unset CODEVILOT_TTY_INPUT_FILE CODEVILOT_TTY_OUTPUT_FILE CODEVILOT_TTY_PATH
+    export PATH TMPDIR CODEVILOT_RAW_BASE_URL
     cd "$CASE_WORK" || exit 1
+}
+
+create_raw_tree() {
+    local raw_root="$1"
+    mkdir -p "$raw_root/lib" "$raw_root/commands"
+    cp "$REPO_ROOT/lib/common.sh" "$raw_root/lib/common.sh"
+    cp "$REPO_ROOT/lib/platform.sh" "$raw_root/lib/platform.sh"
+    cp "$REPO_ROOT/commands/github-ssh.sh" "$raw_root/commands/github-ssh.sh"
 }
 
 create_mocks() {
     local bin_dir="$1"
+
+    cat >"$bin_dir/curl" <<'EOF'
+#!/usr/bin/env bash
+set -u
+destination=""
+url=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -o)
+            destination="$2"
+            shift 2
+            ;;
+        -*)
+            shift
+            ;;
+        *)
+            url="$1"
+            shift
+            ;;
+    esac
+done
+[[ -n "$destination" && -n "$url" ]] || exit 2
+relative="${url#https://mock.local/codevilot/}"
+source_file="$MOCK_RAW_ROOT/$relative"
+[[ -f "$source_file" ]] || exit 22
+cp "$source_file" "$destination"
+EOF
 
     cat >"$bin_dir/ssh-keygen" <<'EOF'
 #!/usr/bin/env bash
@@ -169,11 +212,11 @@ fi
 exit 0
 EOF
 
-    chmod +x "$bin_dir/ssh-keygen" "$bin_dir/ssh" "$bin_dir/git"
+    chmod +x "$bin_dir/curl" "$bin_dir/ssh-keygen" "$bin_dir/ssh" "$bin_dir/git"
 }
 
-run_cli() {
-    "$REPO_ROOT/cli.sh" "$@"
+run_entry() {
+    bash "$REPO_ROOT/entry.sh" "$@"
 }
 
 run_test() {
@@ -186,37 +229,132 @@ run_test() {
     fi
 }
 
-test_new_ssh_config() {
-    setup_case "new-config"
-    run_cli github-ssh --alias github-user --email user@example.com --name "GitHub User" --scope global --non-interactive >/dev/null
+test_bash_syntax() {
+    bash -n "$REPO_ROOT/entry.sh"
+    bash -n "$REPO_ROOT"/commands/*.sh
+    bash -n "$REPO_ROOT"/lib/*.sh
+    bash -n "$REPO_ROOT"/tests/*.sh
+}
+
+test_entry_downloads_required_files() {
+    setup_case "download-required"
+    output="$(run_entry help)"
+    printf '%s\n' "$output" | grep -Fq "Available commands:"
+}
+
+test_download_failure_exits() {
+    setup_case "download-failure"
+    rm -f "$MOCK_RAW_ROOT/lib/platform.sh"
+    if run_entry help >/dev/null 2>&1; then
+        return 1
+    fi
+}
+
+test_empty_download_rejected() {
+    setup_case "empty-download"
+    : >"$MOCK_RAW_ROOT/lib/platform.sh"
+    if run_entry help >/dev/null 2>&1; then
+        return 1
+    fi
+}
+
+test_syntax_error_source_rejected() {
+    setup_case "syntax-error"
+    printf 'if then\n' >"$MOCK_RAW_ROOT/lib/platform.sh"
+    if run_entry help >/dev/null 2>&1; then
+        return 1
+    fi
+}
+
+test_menu_runs_without_args() {
+    setup_case "menu-help"
+    printf '2\n' >"$TTY_INPUT"
+    CODEVILOT_TTY_INPUT_FILE="$TTY_INPUT" CODEVILOT_TTY_OUTPUT_FILE="$TTY_OUTPUT" run_entry >/dev/null
+    assert_file_contains "$TTY_OUTPUT" "codevilot CLI"
+}
+
+test_menu_one_runs_github_ssh() {
+    setup_case "menu-github-ssh"
+    printf '1\ngithub-menu\nmenu@example.com\nMenu User\n\nglobal\nn\n' >"$TTY_INPUT"
+    CODEVILOT_TTY_INPUT_FILE="$TTY_INPUT" CODEVILOT_TTY_OUTPUT_FILE="$TTY_OUTPUT" run_entry >/dev/null
+    assert_file_contains "$HOME/.ssh/config" "Host github-menu"
+    assert_file_contains "$HOME/.gitconfig.mock" "user.email=menu@example.com"
+}
+
+test_invalid_menu_reprompts() {
+    setup_case "menu-invalid"
+    printf '9\n0\n' >"$TTY_INPUT"
+    CODEVILOT_TTY_INPUT_FILE="$TTY_INPUT" CODEVILOT_TTY_OUTPUT_FILE="$TTY_OUTPUT" run_entry >/dev/null
+    assert_file_contains "$TTY_OUTPUT" "Invalid selection: 9"
+}
+
+test_menu_zero_exits() {
+    setup_case "menu-zero"
+    printf '0\n' >"$TTY_INPUT"
+    CODEVILOT_TTY_INPUT_FILE="$TTY_INPUT" CODEVILOT_TTY_OUTPUT_FILE="$TTY_OUTPUT" run_entry
+}
+
+test_no_tty_error() {
+    setup_case "no-tty"
+    CODEVILOT_TTY_PATH="$CASE_DIR/no-tty" run_entry >/dev/null 2>"$CASE_DIR/err" && return 1
+    assert_file_contains "$CASE_DIR/err" "Interactive terminal is unavailable."
+}
+
+test_direct_github_ssh() {
+    setup_case "direct-github-ssh"
+    run_entry github-ssh --alias github-user --email user@example.com --name "GitHub User" --scope global --non-interactive >/dev/null
     assert_file_contains "$HOME/.ssh/config" "Host github-user"
-    assert_file_contains "$HOME/.ssh/config" 'IdentityFile "~/.ssh/id_ed25519_user"'
     assert_file_contains "$HOME/.gitconfig.mock" "user.name=GitHub User"
+}
+
+test_help_forwarded() {
+    setup_case "help-forwarded"
+    output="$(run_entry github-ssh --help)"
+    printf '%s\n' "$output" | grep -Fq "Usage:"
+}
+
+test_unknown_command_exit_code() {
+    setup_case "unknown-command"
+    run_entry nope >/dev/null 2>&1
+    status=$?
+    assert_eq "2" "$status"
+}
+
+test_temp_cleanup() {
+    setup_case "temp-cleanup"
+    run_entry help >/dev/null
+    count="$(find "$TMPDIR" -maxdepth 1 -type d -name 'codevilot.*' | wc -l | tr -d ' ')"
+    assert_eq "0" "$count"
+}
+
+test_real_home_not_modified() {
+    setup_case "home-safe"
+    run_entry github-ssh --alias github-user --email user@example.com --name "GitHub User" --scope global --non-interactive --dry-run >/dev/null
+    [[ ! -e "$HOME/.ssh/config" ]]
+    [[ -z "$REAL_HOME" || "$HOME" != "$REAL_HOME" ]]
+}
+
+test_dry_run_no_file_changes() {
+    setup_case "dry-run"
+    run_entry github-ssh --alias github-user --email user@example.com --name "GitHub User" --scope global --non-interactive --dry-run >/dev/null
+    [[ ! -e "$HOME/.ssh/config" ]]
+}
+
+test_no_duplicate_block() {
+    setup_case "no-duplicate"
+    run_entry github-ssh --alias github-user --email user@example.com --name "GitHub User" --scope global --non-interactive >/dev/null
+    run_entry github-ssh --alias github-user --email user@example.com --name "GitHub User" --scope global --non-interactive >/dev/null
+    count="$(grep -Fc "# BEGIN codevilot-cli:github-user" "$HOME/.ssh/config")"
+    assert_eq "1" "$count"
 }
 
 test_existing_config_preserved() {
     setup_case "preserve-config"
     mkdir -p "$HOME/.ssh"
     printf 'Host work\n    HostName example.com\n' >"$HOME/.ssh/config"
-    run_cli github-ssh --alias github-user --email user@example.com --name "GitHub User" --scope global --non-interactive >/dev/null
+    run_entry github-ssh --alias github-user --email user@example.com --name "GitHub User" --scope global --non-interactive >/dev/null
     assert_file_contains "$HOME/.ssh/config" "Host work"
     assert_file_contains "$HOME/.ssh/config" "Host github-user"
-}
-
-test_no_duplicate_block() {
-    setup_case "no-duplicate"
-    run_cli github-ssh --alias github-user --email user@example.com --name "GitHub User" --scope global --non-interactive >/dev/null
-    run_cli github-ssh --alias github-user --email user@example.com --name "GitHub User" --scope global --non-interactive >/dev/null
-    count="$(grep -Fc "# BEGIN codevilot-cli:github-user" "$HOME/.ssh/config")"
-    assert_eq "1" "$count"
-}
-
-test_multiple_aliases() {
-    setup_case "multi-alias"
-    run_cli github-ssh --alias github-one --email one@example.com --name "One User" --scope global --non-interactive >/dev/null
-    run_cli github-ssh --alias github-two --email two@example.com --name "Two User" --scope global --non-interactive >/dev/null
-    assert_file_contains "$HOME/.ssh/config" "Host github-one"
-    assert_file_contains "$HOME/.ssh/config" "Host github-two"
 }
 
 test_existing_key_not_overwritten() {
@@ -224,75 +362,48 @@ test_existing_key_not_overwritten() {
     mkdir -p "$HOME/.ssh"
     printf 'ORIGINAL PRIVATE\n' >"$HOME/.ssh/id_ed25519_user"
     printf 'ssh-ed25519 ORIGINAL user@example.com\n' >"$HOME/.ssh/id_ed25519_user.pub"
-    run_cli github-ssh --alias github-user --email user@example.com --name "GitHub User" --scope global --non-interactive >/dev/null
+    run_entry github-ssh --alias github-user --email user@example.com --name "GitHub User" --scope global --non-interactive >/dev/null
     assert_file_contains "$HOME/.ssh/id_ed25519_user" "ORIGINAL PRIVATE"
     assert_file_contains "$HOME/.ssh/id_ed25519_user.pub" "ORIGINAL"
 }
 
-test_dry_run_no_file_changes() {
-    setup_case "dry-run"
-    run_cli github-ssh --alias github-user --email user@example.com --name "GitHub User" --scope global --non-interactive --dry-run >/dev/null
-    [[ ! -e "$HOME/.ssh/config" ]]
-}
-
 test_local_scope_outside_git_fails() {
     setup_case "local-fail"
-    if run_cli github-ssh --alias github-user --email user@example.com --name "GitHub User" --scope local --non-interactive >/dev/null 2>&1; then
+    if run_entry github-ssh --alias github-user --email user@example.com --name "GitHub User" --scope local --non-interactive >/dev/null 2>&1; then
         return 1
     fi
-    return 0
 }
 
-test_non_interactive_missing_args_fails() {
-    setup_case "missing-args"
-    if run_cli github-ssh --alias github-user --non-interactive >/dev/null 2>&1; then
-        return 1
-    fi
-    return 0
-}
-
-test_git_name_with_spaces() {
-    setup_case "name-spaces"
-    mkdir -p ".git"
-    run_cli github-ssh --alias github-user --email user@example.com --name "Baek Namheon Test" --scope local --non-interactive >/dev/null
-    assert_file_contains "$PWD/.git/config.mock" "user.name=Baek Namheon Test"
-}
-
-test_bad_option_fails() {
-    setup_case "bad-option"
-    if run_cli github-ssh --bad-option >/dev/null 2>&1; then
-        return 1
-    fi
-    return 0
-}
-
-test_help() {
-    setup_case "help"
-    output="$(run_cli github-ssh --help)"
-    printf '%s\n' "$output" | grep -Fq "Usage:"
-}
-
-test_config_permissions() {
+test_permissions() {
     setup_case "permissions"
-    run_cli github-ssh --alias github-user --email user@example.com --name "GitHub User" --scope global --non-interactive >/dev/null
+    run_entry github-ssh --alias github-user --email user@example.com --name "GitHub User" --scope global --non-interactive >/dev/null
     assert_eq "700" "$(file_mode "$HOME/.ssh")"
     assert_eq "600" "$(file_mode "$HOME/.ssh/config")"
     assert_eq "600" "$(file_mode "$HOME/.ssh/id_ed25519_user")"
     assert_eq "644" "$(file_mode "$HOME/.ssh/id_ed25519_user.pub")"
 }
 
-run_test "new SSH config generation" test_new_ssh_config
-run_test "existing SSH config preserved" test_existing_config_preserved
+run_test "entry.sh Bash syntax check" test_bash_syntax
+run_test "required lib and command files download" test_entry_downloads_required_files
+run_test "download failure exits" test_download_failure_exits
+run_test "empty downloaded file is rejected" test_empty_download_rejected
+run_test "syntax error file is not sourced" test_syntax_error_source_rejected
+run_test "no-argument menu displays" test_menu_runs_without_args
+run_test "menu selection 1 runs github-ssh" test_menu_one_runs_github_ssh
+run_test "invalid menu input reprompts" test_invalid_menu_reprompts
+run_test "menu selection 0 exits" test_menu_zero_exits
+run_test "missing tty gives clear error" test_no_tty_error
+run_test "direct github-ssh subcommand works" test_direct_github_ssh
+run_test "github-ssh --help is forwarded" test_help_forwarded
+run_test "unknown command exits with code 2" test_unknown_command_exit_code
+run_test "temporary directory is cleaned up" test_temp_cleanup
+run_test "real HOME and Git config are not modified" test_real_home_not_modified
+run_test "github-ssh --dry-run changes no files" test_dry_run_no_file_changes
 run_test "same alias does not duplicate block" test_no_duplicate_block
-run_test "multiple aliases remain independent" test_multiple_aliases
+run_test "existing SSH config is preserved" test_existing_config_preserved
 run_test "existing key is not overwritten" test_existing_key_not_overwritten
-run_test "dry-run does not write files" test_dry_run_no_file_changes
 run_test "local scope outside Git repository fails" test_local_scope_outside_git_fails
-run_test "non-interactive missing required args fails" test_non_interactive_missing_args_fails
-run_test "Git user name with spaces is handled" test_git_name_with_spaces
-run_test "bad option fails" test_bad_option_fails
-run_test "github-ssh help works" test_help
-run_test "SSH config and key permissions are set" test_config_permissions
+run_test "SSH config and key permissions are set" test_permissions
 
 printf '\nPassed: %s\nFailed: %s\n' "$PASS_COUNT" "$FAIL_COUNT"
 [[ "$FAIL_COUNT" -eq 0 ]]

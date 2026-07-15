@@ -1,4 +1,4 @@
-name: CI
+name: Test
 
 on:
   pull_request:
@@ -15,8 +15,11 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y shellcheck
       - name: Bash syntax check
         run: |
-          bash -n cli.sh install.sh commands/*.sh lib/*.sh tests/*.sh
+          bash -n entry.sh
+          bash -n commands/*.sh
+          bash -n lib/*.sh
+          bash -n tests/*.sh
       - name: ShellCheck
-        run: shellcheck cli.sh install.sh commands/*.sh lib/*.sh tests/*.sh
+        run: shellcheck entry.sh commands/*.sh lib/*.sh tests/*.sh
       - name: Tests
         run: ./tests/run-tests.sh

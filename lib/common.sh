@@ -58,8 +58,7 @@ confirm() {
     fi
 
     while true; do
-        printf '%s %s ' "$prompt" "$suffix" >&2
-        IFS= read -r answer || return 1
+        answer="$(read_from_tty "${prompt} ${suffix} ")" || return 1
         answer="$(trim "$answer")"
         if [[ -z "$answer" ]]; then
             answer="$default"
@@ -76,8 +75,7 @@ prompt_required() {
     local prompt="$1"
     local value
     while true; do
-        printf '%s ' "$prompt" >&2
-        IFS= read -r value || return 1
+        value="$(read_from_tty "${prompt} ")" || return 1
         value="$(trim "$value")"
         if [[ -n "$value" ]]; then
             printf '%s' "$value"
@@ -91,8 +89,7 @@ prompt_default() {
     local prompt="$1"
     local default="$2"
     local value
-    printf '%s [%s]: ' "$prompt" "$default" >&2
-    IFS= read -r value || return 1
+    value="$(read_from_tty "${prompt} [${default}]: ")" || return 1
     value="$(trim "$value")"
     if [[ -z "$value" ]]; then
         value="$default"
@@ -152,4 +149,35 @@ portable_realpath_dir() {
 
 shell_quote() {
     printf '%q' "$1"
+}
+
+read_from_tty() {
+    local prompt="$1"
+    local value=""
+    local tty_path="${CODEVILOT_TTY_PATH:-/dev/tty}"
+    local input_file="${CODEVILOT_TTY_INPUT_FILE:-}"
+    local output_file="${CODEVILOT_TTY_OUTPUT_FILE:-}"
+    local tmp_file
+
+    if [[ -n "$input_file" ]]; then
+        [[ -r "$input_file" ]] || return 1
+        if [[ -n "$output_file" ]]; then
+            printf '%s' "$prompt" >>"$output_file"
+        fi
+        IFS= read -r value <"$input_file" || return 1
+        tmp_file="$(mktemp "${TMPDIR:-/tmp}/codevilot-tty.XXXXXX")"
+        tail -n +2 "$input_file" >"$tmp_file"
+        mv "$tmp_file" "$input_file"
+        printf '%s' "$value"
+        return 0
+    fi
+
+    if [[ -r "$tty_path" && -w "$tty_path" ]]; then
+        printf '%s' "$prompt" >"$tty_path"
+        IFS= read -r value <"$tty_path"
+    else
+        return 1
+    fi
+
+    printf '%s' "$value"
 }
