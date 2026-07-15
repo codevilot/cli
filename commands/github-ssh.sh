@@ -18,7 +18,7 @@ Configure a personal GitHub SSH identity.
 
 Options:
   --alias <alias>            SSH Host alias, for example github-user
-  --email <email>            Email used for key comment; deprecated for Git author setup
+  --email <email>            Email used for key comment and default commit author email
   --name <git-name>          Deprecated; use git-author
   --key-file <path>          SSH private key path
   --scope <local|global>     Deprecated; use git-author
@@ -411,7 +411,7 @@ EOF
    ssh -T git@${alias_name}
 3. Clone using the alias:
    git clone git@${alias_name}:OWNER/REPOSITORY.git
-4. Enter the cloned repository and configure the Git author:
+4. If you skip commit author setup now, enter the cloned repository and run:
    codevilot git-author
 
 For curl | bash:
@@ -421,6 +421,37 @@ For curl | bash:
 The alias "${alias_name}" is resolved by the ~/.ssh/config file
 on the machine where the git command is executed.
 EOF
+}
+
+github_ssh_offer_author_setup() {
+    local status
+
+    [[ "$GITHUB_SSH_NON_INTERACTIVE" != "1" ]] || return 0
+    [[ "$GITHUB_SSH_AUTHOR_OPTIONS" != "1" ]] || return 0
+
+    printf '\n'
+    printf '%s %s\n' "$(ui_cyan "[optional]")" "$(ui_bold "Commit author")"
+    ui_note "This sets the name and email shown on Git commits."
+
+    if ! confirm "Configure commit author now?" "y"; then
+        git_author_skip_message
+        return 0
+    fi
+
+    GIT_AUTHOR_NAME=""
+    GIT_AUTHOR_EMAIL="$GITHUB_SSH_EMAIL"
+    GIT_AUTHOR_SCOPE=""
+    GIT_AUTHOR_REPO=""
+    GIT_AUTHOR_NON_INTERACTIVE=0
+
+    git_author_collect_inputs
+    git_author_apply "$GIT_AUTHOR_NAME" "$GIT_AUTHOR_EMAIL" "$GIT_AUTHOR_SCOPE" "$GIT_AUTHOR_REPO" "$GIT_AUTHOR_NON_INTERACTIVE" "$DRY_RUN"
+    status=$?
+    if [[ "$status" == "2" ]]; then
+        git_author_handle_missing_local_repo
+    fi
+
+    success "Commit author setup completed."
 }
 
 github_ssh_handle_deprecated_author_options() {
@@ -493,5 +524,5 @@ github_ssh_main() {
     fi
 
     github_ssh_final_notes "$GITHUB_SSH_ALIAS" "$GITHUB_SSH_KEY_FILE"
-    success "GitHub SSH setup completed successfully."
+    github_ssh_offer_author_setup
 }

@@ -211,8 +211,8 @@ write_github_menu() {
         cat <<'EOF'
 
   1) GitHub SSH setup
-  2) Git author setup
-  3) Verify GitHub SSH authentication
+  2) Verify GitHub SSH authentication
+  3) Configure commit author only
   4) Update repository origin
   0) Back
 
@@ -279,11 +279,11 @@ show_github_menu() {
                 return $?
                 ;;
             2)
-                git_author_main
+                github_ssh_test_main
                 return $?
                 ;;
             3)
-                github_ssh_test_main
+                git_author_main
                 return $?
                 ;;
             4)

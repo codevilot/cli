@@ -77,8 +77,9 @@ setup_case() {
     PATH="$MOCK_BIN:/usr/bin:/bin:/usr/sbin:/sbin"
     TMPDIR="$CASE_DIR/tmp"
     CODEVILOT_RAW_BASE_URL="https://mock.local/codevilot"
+    CODEVILOT_DISABLE_CLIPBOARD=1
     unset CODEVILOT_TTY_INPUT_FILE CODEVILOT_TTY_OUTPUT_FILE CODEVILOT_TTY_PATH SSH_MOCK_MODE
-    export PATH TMPDIR CODEVILOT_RAW_BASE_URL
+    export PATH TMPDIR CODEVILOT_RAW_BASE_URL CODEVILOT_DISABLE_CLIPBOARD
     cd "$CASE_WORK" || exit 1
 }
 
@@ -309,7 +310,7 @@ test_github_submenu_displays() {
     CODEVILOT_TTY_INPUT_FILE="$TTY_INPUT" CODEVILOT_TTY_OUTPUT_FILE="$TTY_OUTPUT" run_entry >/dev/null
     assert_file_contains "$TTY_OUTPUT" "GitHub"
     assert_file_contains "$TTY_OUTPUT" "GitHub SSH setup"
-    assert_file_contains "$TTY_OUTPUT" "Git author setup"
+    assert_file_contains "$TTY_OUTPUT" "Configure commit author only"
     assert_file_contains "$TTY_OUTPUT" "Verify GitHub SSH authentication"
 }
 
@@ -351,6 +352,16 @@ test_github_ssh_local_scope_outside_git_skips_zero() {
     assert_eq "0" "$status"
     assert_file_contains "$HOME/.ssh/config" "Host github-codevilot"
     printf '%s\n' "$output" | grep -Fq "Skipped: current directory is not a Git repository"
+}
+
+test_github_ssh_interactive_configures_author_by_default() {
+    setup_case "github-ssh-author-default"
+    create_repo "$CASE_WORK"
+    printf '\nn\n\ncodevilot\n\n' >"$TTY_INPUT"
+    CODEVILOT_TTY_INPUT_FILE="$TTY_INPUT" CODEVILOT_TTY_OUTPUT_FILE="$TTY_OUTPUT" run_entry github-ssh --alias github-codevilot --email namhundred@naver.com >/dev/null
+    assert_file_contains "$CASE_WORK/.git/config.mock" "user.name=codevilot"
+    assert_file_contains "$CASE_WORK/.git/config.mock" "user.email=namhundred@naver.com"
+    assert_file_contains "$TTY_OUTPUT" "Configure commit author now? [Y/n]"
 }
 
 test_ssh_failure_nonzero() {
@@ -414,7 +425,7 @@ test_existing_key_interactive_menu() {
     mkdir -p "$HOME/.ssh"
     printf 'ORIGINAL PRIVATE\n' >"$HOME/.ssh/id_ed25519_codevilot"
     printf 'ssh-ed25519 ORIGINAL user@example.com\n' >"$HOME/.ssh/id_ed25519_codevilot.pub"
-    printf '1\nn\n' >"$TTY_INPUT"
+    printf '1\nn\nn\n' >"$TTY_INPUT"
     CODEVILOT_TTY_INPUT_FILE="$TTY_INPUT" CODEVILOT_TTY_OUTPUT_FILE="$TTY_OUTPUT" run_entry github-ssh --alias github-codevilot --email user@example.com >/dev/null 2>"$CASE_DIR/err"
     assert_file_contains "$CASE_DIR/err" "Use existing key"
     assert_file_contains "$HOME/.ssh/id_ed25519_codevilot.pub" "ORIGINAL"
@@ -490,6 +501,7 @@ run_test "unknown command exits with code 2" test_unknown_command_exit_code
 run_test "temporary directory is cleaned up" test_temp_cleanup
 run_test "home directory github-ssh completes SSH setup" test_github_ssh_home_success
 run_test "github-ssh local scope outside repo skips Git author with zero exit" test_github_ssh_local_scope_outside_git_skips_zero
+run_test "github-ssh configures commit author by default when interactive" test_github_ssh_interactive_configures_author_by_default
 run_test "actual SSH key generation failure is non-zero" test_ssh_failure_nonzero
 run_test "git-author local works inside repository" test_git_author_local_inside_repo
 run_test "git-author local works with --repo" test_git_author_repo_path

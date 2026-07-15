@@ -45,6 +45,8 @@ absolute_path() {
 }
 
 clipboard_command() {
+    [[ "${CODEVILOT_DISABLE_CLIPBOARD:-}" == "1" ]] && return 0
+
     if is_macos && command -v pbcopy >/dev/null 2>&1; then
         printf 'pbcopy'
     elif command -v wl-copy >/dev/null 2>&1; then
