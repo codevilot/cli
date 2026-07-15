@@ -6,6 +6,8 @@
 . "$SCRIPT_DIR/lib/common.sh"
 # shellcheck source=../lib/platform.sh
 . "$SCRIPT_DIR/lib/platform.sh"
+# shellcheck source=../lib/ui.sh
+. "$SCRIPT_DIR/lib/ui.sh"
 
 github_ssh_usage() {
     cat <<'EOF'
@@ -351,16 +353,16 @@ github_ssh_print_public_key() {
 
     [[ -f "$public_key" ]] || die "Public key not found: $public_key"
 
-    cat <<EOF
-
-Register the following public key in GitHub:
-
-GitHub
--> Settings
--> SSH and GPG keys
--> New SSH key
-
-EOF
+    printf '\n'
+    ui_step "3" "3" "Register this public key in GitHub"
+    ui_status "Open" "https://github.com/settings/keys"
+    ui_status "Click" "New SSH key"
+    ui_status "Title" "$(hostname 2>/dev/null || printf codevilot)-${GITHUB_SSH_ALIAS}"
+    ui_status "Key type" "Authentication Key"
+    ui_status "Key" "paste the full public key below"
+    printf '\n'
+    ui_bold "Public key:"
+    printf '\n\n'
     cat "$public_key"
     printf '\n'
 
@@ -379,20 +381,30 @@ EOF
 
 github_ssh_final_notes() {
     local alias_name="$1" key_file="$2"
+    success "GitHub SSH setup completed."
+    printf '\n'
+
+    ui_kv "Alias" "$alias_name"
+    ui_kv "Private key" "$key_file"
+    ui_kv "Public key" "${key_file}.pub"
+
+    ui_bold "How to register the public key in GitHub:"
     cat <<EOF
 
-GitHub SSH setup completed.
+  1) Open:
+     https://github.com/settings/keys
+  2) Click "New SSH key".
+  3) Title:
+     $(hostname 2>/dev/null || printf codevilot)-${alias_name}
+  4) Key type:
+     Authentication Key
+  5) Key:
+     paste the full public key printed above.
+  6) Click "Add SSH key".
 
-Alias:
-  ${alias_name}
-
-Private key:
-  ${key_file}
-
-Public key:
-  ${key_file}.pub
-
-Next steps:
+EOF
+    ui_bold "Next steps:"
+    cat <<EOF
 
 1. Register the public key in GitHub.
 2. Verify authentication:
@@ -423,7 +435,7 @@ EOF
     if [[ -z "$GITHUB_SSH_NAME" || -z "$GITHUB_SSH_EMAIL" || -z "$GITHUB_SSH_SCOPE" ]]; then
         cat <<'EOF'
 
-[3/3] Git author
+[optional] Git author
       Skipped: incomplete deprecated Git author options
 EOF
         return 0
@@ -432,7 +444,7 @@ EOF
     if [[ "$GITHUB_SSH_SCOPE" == "local" ]] && ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
         cat <<'EOF'
 
-[3/3] Git author
+[optional] Git author
       Skipped: current directory is not a Git repository
 
 Git local author configuration was skipped because the current
@@ -446,7 +458,7 @@ EOF
         git_author_apply "$GITHUB_SSH_NAME" "$GITHUB_SSH_EMAIL" "$GITHUB_SSH_SCOPE" "" "$GITHUB_SSH_NON_INTERACTIVE" "$DRY_RUN"
         cat <<EOF
 
-[3/3] Git author
+[optional] Git author
       Configured: ${GITHUB_SSH_SCOPE}
 EOF
     fi
@@ -460,17 +472,14 @@ github_ssh_main() {
     github_ssh_parse_args "$@"
     github_ssh_collect_inputs
 
-    cat <<EOF
-[1/3] SSH key
-EOF
+    ui_step "1" "3" "SSH key"
     github_ssh_prepare_key "$GITHUB_SSH_KEY_FILE"
-    printf '      Ready: %s\n\n' "$GITHUB_SSH_KEY_FILE"
+    ui_status "Ready" "$GITHUB_SSH_KEY_FILE"
+    printf '\n'
 
-    cat <<EOF
-[2/3] SSH config
-EOF
+    ui_step "2" "3" "SSH config"
     github_ssh_write_config "$GITHUB_SSH_ALIAS" "$GITHUB_SSH_KEY_FILE"
-    printf '      Alias: %s\n' "$GITHUB_SSH_ALIAS"
+    ui_status "Alias" "$GITHUB_SSH_ALIAS"
 
     github_ssh_handle_deprecated_author_options
     github_ssh_print_public_key "${GITHUB_SSH_KEY_FILE}.pub"

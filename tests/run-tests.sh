@@ -85,8 +85,7 @@ setup_case() {
 create_raw_tree() {
     local raw_root="$1"
     mkdir -p "$raw_root/lib" "$raw_root/commands"
-    cp "$REPO_ROOT/lib/common.sh" "$raw_root/lib/common.sh"
-    cp "$REPO_ROOT/lib/platform.sh" "$raw_root/lib/platform.sh"
+    cp "$REPO_ROOT"/lib/*.sh "$raw_root/lib/"
     cp "$REPO_ROOT"/commands/*.sh "$raw_root/commands/"
 }
 
@@ -341,6 +340,8 @@ test_github_ssh_home_success() {
     assert_file_contains "$HOME/.ssh/config" "Host github-codevilot"
     assert_file_contains "$HOME/.ssh/id_ed25519_codevilot.pub" "ssh-ed25519"
     printf '%s\n' "$output" | grep -Fq "GitHub SSH setup completed."
+    printf '%s\n' "$output" | grep -Fq "https://github.com/settings/keys"
+    printf '%s\n' "$output" | grep -Fq "Public key:"
 }
 
 test_github_ssh_local_scope_outside_git_skips_zero() {

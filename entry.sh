@@ -9,6 +9,7 @@ TEMP_DIR=""
 REQUIRED_FILES=(
     "lib/common.sh"
     "lib/platform.sh"
+    "lib/ui.sh"
     "commands/github-ssh.sh"
     "commands/git-author.sh"
     "commands/github-ssh-test.sh"
@@ -121,6 +122,8 @@ load_modules() {
     . "$TEMP_DIR/lib/common.sh"
     # shellcheck source=lib/platform.sh
     . "$TEMP_DIR/lib/platform.sh"
+    # shellcheck source=lib/ui.sh
+    . "$TEMP_DIR/lib/ui.sh"
     # shellcheck source=commands/github-ssh.sh
     . "$TEMP_DIR/commands/github-ssh.sh"
     # shellcheck source=commands/git-author.sh
@@ -182,10 +185,12 @@ write_to_tty() {
 }
 
 write_menu() {
-    write_to_tty <<'EOF'
-codevilot CLI
+    {
+        ui_bold "codevilot CLI"
+        printf '\n\n'
+        ui_cyan "Select a category:"
+        cat <<'EOF'
 
-Select a category:
 
   1) GitHub
   2) Show help
@@ -193,15 +198,17 @@ Select a category:
   0) Exit
 
 EOF
+    } | write_to_tty
 }
 
 write_github_menu() {
-    write_to_tty <<'EOF'
-codevilot CLI
-
-GitHub
-
-Select a command:
+    {
+        ui_bold "codevilot CLI"
+        printf '\n\n'
+        ui_cyan "GitHub"
+        printf '\n\n'
+        ui_cyan "Select a command:"
+        cat <<'EOF'
 
   1) GitHub SSH setup
   2) Git author setup
@@ -210,6 +217,7 @@ Select a command:
   0) Back
 
 EOF
+    } | write_to_tty
 }
 
 print_interactive_unavailable() {

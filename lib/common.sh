@@ -9,7 +9,10 @@ CODEVILOT_VERSION="0.1.0"
 CODEVILOT_NAME="codevilot"
 
 color_enabled() {
-    [[ -t 1 && "${NO_COLOR:-}" == "" ]]
+    [[ "${NO_COLOR:-}" == "" ]] || return 1
+    [[ -n "${CODEVILOT_TTY_OUTPUT_FILE:-}" ]] && return 1
+    [[ -t 1 ]] && return 0
+    [[ -w "${CODEVILOT_TTY_PATH:-/dev/tty}" ]]
 }
 
 _color() {
