@@ -1,0 +1,5 @@
+shell=bash
+external-sources=true
+source-path=SCRIPTDIR
+enable=all
+disable=SC2312

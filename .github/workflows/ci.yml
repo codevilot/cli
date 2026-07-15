@@ -1,0 +1,22 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  bash:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+      - name: Bash syntax check
+        run: |
+          bash -n cli.sh install.sh commands/*.sh lib/*.sh tests/*.sh
+      - name: ShellCheck
+        run: shellcheck cli.sh install.sh commands/*.sh lib/*.sh tests/*.sh
+      - name: Tests
+        run: ./tests/run-tests.sh

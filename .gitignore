@@ -1,0 +1,12 @@
+.DS_Store
+*.log
+tmp/
+temp/
+
+# Secrets and key material. Public keys are not secret, but id_ed25519*.pub
+# files can still expose identity metadata, so the default is conservative.
+id_ed25519*
+*.pem
+*.key
+.env
+.env.*
