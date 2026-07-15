@@ -20,7 +20,7 @@ case ":$PATH:" in
 $INSTALL_DIR is not in your PATH.
 Add this to your shell config if needed:
 
-  export PATH="\$HOME/.local/bin:\$PATH"
+  export PATH="$INSTALL_DIR:\$PATH"
 
 For bash, edit ~/.bashrc.
 For zsh, edit ~/.zshrc.
