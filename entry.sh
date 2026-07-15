@@ -185,15 +185,29 @@ write_menu() {
     write_to_tty <<'EOF'
 codevilot CLI
 
+Select a category:
+
+  1) GitHub
+  2) Show help
+  3) Show version
+  0) Exit
+
+EOF
+}
+
+write_github_menu() {
+    write_to_tty <<'EOF'
+codevilot CLI
+
+GitHub
+
 Select a command:
 
   1) GitHub SSH setup
   2) Git author setup
   3) Verify GitHub SSH authentication
   4) Update repository origin
-  5) Show help
-  6) Show version
-  0) Exit
+  0) Back
 
 EOF
 }
@@ -218,6 +232,41 @@ show_menu() {
         selection="$(read_menu_selection)" || return 1
         case "$selection" in
             1)
+                show_github_menu || return $?
+                ;;
+            2)
+                show_help
+                return 0
+                ;;
+            3)
+                show_version
+                return 0
+                ;;
+            0)
+                return 0
+                ;;
+            *)
+                if [[ -n "${CODEVILOT_TTY_OUTPUT_FILE:-}" ]]; then
+                    printf 'Invalid selection: %s\n' "$selection" >>"$CODEVILOT_TTY_OUTPUT_FILE"
+                else
+                    printf 'Invalid selection: %s\n' "$selection" >"${CODEVILOT_TTY_PATH:-/dev/tty}"
+                fi
+                ;;
+        esac
+    done
+}
+
+show_github_menu() {
+    local selection
+
+    while true; do
+        if ! write_github_menu; then
+            print_interactive_unavailable
+            return 1
+        fi
+        selection="$(read_menu_selection)" || return 1
+        case "$selection" in
+            1)
                 github_ssh_main
                 return $?
                 ;;
@@ -232,14 +281,6 @@ show_menu() {
             4)
                 git_origin_main
                 return $?
-                ;;
-            5)
-                show_help
-                return 0
-                ;;
-            6)
-                show_version
-                return 0
                 ;;
             0)
                 return 0

@@ -298,9 +298,20 @@ test_download_failure_exits() {
 
 test_menu_runs_without_args() {
     setup_case "menu-help"
-    printf '5\n' >"$TTY_INPUT"
+    printf '2\n' >"$TTY_INPUT"
     CODEVILOT_TTY_INPUT_FILE="$TTY_INPUT" CODEVILOT_TTY_OUTPUT_FILE="$TTY_OUTPUT" run_entry >/dev/null
+    assert_file_contains "$TTY_OUTPUT" "Select a category:"
+    assert_file_contains "$TTY_OUTPUT" "1) GitHub"
+}
+
+test_github_submenu_displays() {
+    setup_case "menu-github"
+    printf '1\n0\n0\n' >"$TTY_INPUT"
+    CODEVILOT_TTY_INPUT_FILE="$TTY_INPUT" CODEVILOT_TTY_OUTPUT_FILE="$TTY_OUTPUT" run_entry >/dev/null
+    assert_file_contains "$TTY_OUTPUT" "GitHub"
+    assert_file_contains "$TTY_OUTPUT" "GitHub SSH setup"
     assert_file_contains "$TTY_OUTPUT" "Git author setup"
+    assert_file_contains "$TTY_OUTPUT" "Verify GitHub SSH authentication"
 }
 
 test_invalid_menu_reprompts() {
@@ -472,6 +483,7 @@ run_test "entry.sh Bash syntax check" test_bash_syntax
 run_test "required lib and command files download" test_entry_downloads_required_files
 run_test "download failure exits" test_download_failure_exits
 run_test "no-argument menu displays new commands" test_menu_runs_without_args
+run_test "GitHub submenu displays GitHub commands" test_github_submenu_displays
 run_test "invalid menu input reprompts" test_invalid_menu_reprompts
 run_test "unknown command exits with code 2" test_unknown_command_exit_code
 run_test "temporary directory is cleaned up" test_temp_cleanup
