@@ -10,6 +10,9 @@ REQUIRED_FILES=(
     "lib/common.sh"
     "lib/platform.sh"
     "commands/github-ssh.sh"
+    "commands/git-author.sh"
+    "commands/github-ssh-test.sh"
+    "commands/git-origin.sh"
 )
 
 debug() {
@@ -120,6 +123,12 @@ load_modules() {
     . "$TEMP_DIR/lib/platform.sh"
     # shellcheck source=commands/github-ssh.sh
     . "$TEMP_DIR/commands/github-ssh.sh"
+    # shellcheck source=commands/git-author.sh
+    . "$TEMP_DIR/commands/git-author.sh"
+    # shellcheck source=commands/github-ssh-test.sh
+    . "$TEMP_DIR/commands/github-ssh-test.sh"
+    # shellcheck source=commands/git-origin.sh
+    . "$TEMP_DIR/commands/git-origin.sh"
 }
 
 show_help() {
@@ -131,9 +140,12 @@ Usage:
   curl -fsSL https://raw.githubusercontent.com/codevilot/cli/main/entry.sh | bash -s -- <command> [options]
 
 Available commands:
-  github-ssh    Configure a personal GitHub SSH identity
-  help          Show help
-  version       Show CLI version
+  github-ssh         Configure a personal GitHub SSH identity
+  git-author         Configure Git commit author
+  github-ssh-test    Verify GitHub SSH authentication
+  git-origin         Update repository origin SSH alias
+  help               Show help
+  version            Show CLI version
 
 Global options:
   -h, --help       Show help
@@ -176,8 +188,11 @@ codevilot CLI
 Select a command:
 
   1) GitHub SSH setup
-  2) Show help
-  3) Show version
+  2) Git author setup
+  3) Verify GitHub SSH authentication
+  4) Update repository origin
+  5) Show help
+  6) Show version
   0) Exit
 
 EOF
@@ -207,10 +222,22 @@ show_menu() {
                 return $?
                 ;;
             2)
+                git_author_main
+                return $?
+                ;;
+            3)
+                github_ssh_test_main
+                return $?
+                ;;
+            4)
+                git_origin_main
+                return $?
+                ;;
+            5)
                 show_help
                 return 0
                 ;;
-            3)
+            6)
                 show_version
                 return 0
                 ;;
@@ -238,6 +265,18 @@ dispatch() {
         github-ssh)
             shift
             github_ssh_main "$@"
+            ;;
+        git-author)
+            shift
+            git_author_main "$@"
+            ;;
+        github-ssh-test|ssh-test)
+            shift
+            github_ssh_test_main "$@"
+            ;;
+        git-origin)
+            shift
+            git_origin_main "$@"
             ;;
         help|-h|--help)
             show_help

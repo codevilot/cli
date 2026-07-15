@@ -16,10 +16,10 @@ Configure a personal GitHub SSH identity.
 
 Options:
   --alias <alias>            SSH Host alias, for example github-user
-  --email <email>            GitHub email used for key comment and Git commits
-  --name <git-name>          Git commit author name
+  --email <email>            Email used for key comment; deprecated for Git author setup
+  --name <git-name>          Deprecated; use git-author
   --key-file <path>          SSH private key path
-  --scope <local|global>     Git config scope
+  --scope <local|global>     Deprecated; use git-author
   --test                     Run GitHub SSH authentication test
   --non-interactive          Do not prompt; fail when required values are missing
   --force                    Allow updating an existing managed SSH config block
@@ -70,6 +70,7 @@ github_ssh_parse_args() {
     GITHUB_SSH_NAME=""
     GITHUB_SSH_KEY_FILE=""
     GITHUB_SSH_SCOPE=""
+    GITHUB_SSH_AUTHOR_OPTIONS=0
     GITHUB_SSH_RUN_TEST=0
     GITHUB_SSH_NON_INTERACTIVE=0
     GITHUB_SSH_FORCE=0
@@ -90,6 +91,7 @@ github_ssh_parse_args() {
             --name)
                 [[ $# -ge 2 ]] || die "--name requires a value"
                 GITHUB_SSH_NAME="$2"
+                GITHUB_SSH_AUTHOR_OPTIONS=1
                 shift 2
                 ;;
             --key-file)
@@ -100,6 +102,7 @@ github_ssh_parse_args() {
             --scope)
                 [[ $# -ge 2 ]] || die "--scope requires a value"
                 GITHUB_SSH_SCOPE="$2"
+                GITHUB_SSH_AUTHOR_OPTIONS=1
                 shift 2
                 ;;
             --test)
@@ -140,12 +143,9 @@ github_ssh_collect_inputs() {
     if [[ "$GITHUB_SSH_NON_INTERACTIVE" == "1" ]]; then
         [[ -n "$GITHUB_SSH_ALIAS" ]] || die "--alias is required in --non-interactive mode"
         [[ -n "$GITHUB_SSH_EMAIL" ]] || die "--email is required in --non-interactive mode"
-        [[ -n "$GITHUB_SSH_NAME" ]] || die "--name is required in --non-interactive mode"
-        [[ -n "$GITHUB_SSH_SCOPE" ]] || die "--scope is required in --non-interactive mode"
     else
         [[ -n "$GITHUB_SSH_ALIAS" ]] || GITHUB_SSH_ALIAS="$(prompt_required "GitHub SSH alias [example: github-user]:")"
         [[ -n "$GITHUB_SSH_EMAIL" ]] || GITHUB_SSH_EMAIL="$(prompt_required "GitHub email:")"
-        [[ -n "$GITHUB_SSH_NAME" ]] || GITHUB_SSH_NAME="$(prompt_required "Git commit author name:")"
     fi
 
     github_ssh_validate_alias "$GITHUB_SSH_ALIAS" || die "Invalid alias. Use letters, numbers, dots, underscores, or hyphens."
@@ -154,28 +154,19 @@ github_ssh_collect_inputs() {
     if [[ -z "$GITHUB_SSH_KEY_FILE" ]]; then
         if [[ "$GITHUB_SSH_NON_INTERACTIVE" == "1" ]]; then
             GITHUB_SSH_KEY_FILE="$default_key"
+        elif [[ -f "$default_key" && -f "${default_key}.pub" ]]; then
+            GITHUB_SSH_KEY_FILE="$default_key"
         else
             GITHUB_SSH_KEY_FILE="$(prompt_default "SSH key path" "$default_key")"
         fi
     fi
 
-    if [[ -z "$GITHUB_SSH_SCOPE" ]]; then
-        if [[ "$GITHUB_SSH_NON_INTERACTIVE" == "1" ]]; then
-            die "--scope is required in --non-interactive mode"
-        fi
-        while true; do
-            GITHUB_SSH_SCOPE="$(prompt_default "Git config scope" "local")"
-            case "$GITHUB_SSH_SCOPE" in
-                local|global) break ;;
-                *) warn "Scope must be local or global." ;;
-            esac
-        done
+    if [[ -n "$GITHUB_SSH_SCOPE" ]]; then
+        case "$GITHUB_SSH_SCOPE" in
+            local|global) ;;
+            *) die "--scope must be local or global" ;;
+        esac
     fi
-
-    case "$GITHUB_SSH_SCOPE" in
-        local|global) ;;
-        *) die "--scope must be local or global" ;;
-    esac
 
     GITHUB_SSH_KEY_FILE="$(absolute_path "$GITHUB_SSH_KEY_FILE")"
 }
@@ -197,6 +188,33 @@ github_ssh_prepare_key() {
     ensure_dir "$(dirname "$key_file")" 700
 
     if [[ -f "$key_file" && -f "$public_key" ]]; then
+        printf 'Existing SSH key found:\n  %s\n\n' "$key_file"
+        if [[ "$GITHUB_SSH_NON_INTERACTIVE" != "1" ]]; then
+            while true; do
+                cat >&2 <<EOF
+  1) Use existing key
+  2) Enter another key path
+  0) Cancel
+EOF
+                choice="$(read_from_tty "Enter selection: ")" || die "Canceled"
+                choice="$(trim "$choice")"
+                case "$choice" in
+                    1) break ;;
+                    2)
+                        GITHUB_SSH_KEY_FILE="$(prompt_required "SSH key path:")"
+                        GITHUB_SSH_KEY_FILE="$(absolute_path "$GITHUB_SSH_KEY_FILE")"
+                        github_ssh_prepare_key "$GITHUB_SSH_KEY_FILE"
+                        return $?
+                        ;;
+                    0)
+                        die "Canceled"
+                        ;;
+                    *)
+                        warn "Choose 1, 2, or 0."
+                        ;;
+                esac
+            done
+        fi
         chmod 600 "$key_file"
         chmod 644 "$public_key"
         return 0
@@ -210,11 +228,14 @@ github_ssh_prepare_key() {
         warn "An SSH key file already exists, but the pair is incomplete or needs review."
         while true; do
             cat >&2 <<EOF
-1. Use existing key
-2. Enter another key path
-3. Cancel
+Existing SSH key found:
+  $key_file
+
+  1) Use existing key
+  2) Enter another key path
+  0) Cancel
 EOF
-            choice="$(read_from_tty "Choose [1-3]: ")" || die "Canceled"
+            choice="$(read_from_tty "Enter selection: ")" || die "Canceled"
             choice="$(trim "$choice")"
             case "$choice" in
                 1)
@@ -229,11 +250,11 @@ EOF
                     github_ssh_prepare_key "$GITHUB_SSH_KEY_FILE"
                     return $?
                     ;;
-                3)
+                0)
                     die "Canceled"
                     ;;
                 *)
-                    warn "Choose 1, 2, or 3."
+                    warn "Choose 1, 2, or 0."
                     ;;
             esac
         done
@@ -267,7 +288,8 @@ github_ssh_write_config() {
     chmod 600 "$config_file"
 
     if grep -Fqx "$begin_marker" "$config_file" && [[ "$GITHUB_SSH_FORCE" != "1" ]]; then
-        info "Updating existing managed SSH config block for ${alias_name}."
+        printf 'SSH alias already configured:\n  %s\n\nNo SSH config changes were required.\n' "$alias_name"
+        return 0
     fi
 
     backup_file_path="$(backup_file "$config_file")"
@@ -318,75 +340,6 @@ github_ssh_write_config() {
     trap - RETURN
 }
 
-github_ssh_git_get() {
-    local scope="$1"
-    local key="$2"
-    if [[ "$scope" == "global" ]]; then
-        git config --global "$key" 2>/dev/null || true
-    else
-        git config "$key" 2>/dev/null || true
-    fi
-}
-
-github_ssh_git_set() {
-    local scope="$1"
-    local key="$2"
-    local value="$3"
-    if [[ "$DRY_RUN" == "1" ]]; then
-        if [[ "$scope" == "global" ]]; then
-            printf '[dry-run] git config --global %q %q\n' "$key" "$value"
-        else
-            printf '[dry-run] git config %q %q\n' "$key" "$value"
-        fi
-        return 0
-    fi
-
-    if [[ "$scope" == "global" ]]; then
-        git config --global "$key" "$value"
-    else
-        git config "$key" "$value"
-    fi
-}
-
-github_ssh_configure_git() {
-    local scope="$1"
-    local name="$2"
-    local email="$3"
-    local old_name old_email new_name new_email
-
-    have_command git || die "git command not found"
-
-    if [[ "$scope" == "local" && "$DRY_RUN" != "1" ]]; then
-        git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die "--scope local requires running inside a Git repository"
-    fi
-
-    old_name="$(github_ssh_git_get "$scope" user.name)"
-    old_email="$(github_ssh_git_get "$scope" user.email)"
-
-    if [[ "$GITHUB_SSH_NON_INTERACTIVE" != "1" && ( "$old_name" != "" || "$old_email" != "" ) && ( "$old_name" != "$name" || "$old_email" != "$email" ) ]]; then
-        cat >&2 <<EOF
-Current Git ${scope} config:
-  user.name:  ${old_name:-<unset>}
-  user.email: ${old_email:-<unset>}
-
-New Git ${scope} config:
-  user.name:  ${name}
-  user.email: ${email}
-EOF
-        confirm "Apply these Git config changes?" "y" || die "Canceled"
-    fi
-
-    github_ssh_git_set "$scope" user.name "$name"
-    github_ssh_git_set "$scope" user.email "$email"
-
-    if [[ "$DRY_RUN" != "1" ]]; then
-        new_name="$(github_ssh_git_get "$scope" user.name)"
-        new_email="$(github_ssh_git_get "$scope" user.email)"
-        [[ "$new_name" == "$name" ]] || die "Failed to verify git user.name"
-        [[ "$new_email" == "$email" ]] || die "Failed to verify git user.email"
-    fi
-}
-
 github_ssh_print_public_key() {
     local public_key="$1"
     local clip
@@ -424,71 +377,112 @@ EOF
     fi
 }
 
-github_ssh_test_auth() {
-    local alias_name="$1"
-    local output status username
-
-    if [[ "$DRY_RUN" == "1" ]]; then
-        printf '[dry-run] ssh -T git@%q\n' "$alias_name"
-        return 0
-    fi
-
-    output="$(ssh -T "git@${alias_name}" 2>&1)"
-    status=$?
-    printf '%s\n' "$output"
-
-    if printf '%s\n' "$output" | grep -Eq "Hi .+! You've successfully authenticated"; then
-        username="$(printf '%s\n' "$output" | sed -n "s/.*Hi \([^!]*\)! You've successfully authenticated.*/\1/p" | head -n 1)"
-        [[ -n "$username" ]] && printf 'Authenticated GitHub account: %s\n' "$username"
-        warn "Confirm this is the GitHub account you intended to use."
-        return 0
-    fi
-
-    if printf '%s\n' "$output" | grep -Eiq 'permission denied|publickey'; then
-        die "GitHub rejected the SSH key. Register the public key in GitHub and try again."
-    elif printf '%s\n' "$output" | grep -Eiq 'could not resolve hostname|name or service not known|nodename nor servname'; then
-        die "DNS or hostname resolution failed while connecting to GitHub."
-    elif printf '%s\n' "$output" | grep -Eiq 'host key verification failed'; then
-        die "Host key verification failed. Review your SSH known_hosts entry for github.com."
-    elif printf '%s\n' "$output" | grep -Eiq 'connection timed out|network is unreachable|connection refused'; then
-        die "Network connection to GitHub SSH failed."
-    fi
-
-    die "SSH authentication test did not return GitHub's success message. Exit code: $status"
-}
-
 github_ssh_final_notes() {
-    local alias_name="$1"
+    local alias_name="$1" key_file="$2"
     cat <<EOF
 
-Clone with:
-  git clone git@${alias_name}:OWNER/REPOSITORY.git
+GitHub SSH setup completed.
 
-Change an existing repository origin with:
-  git remote set-url origin git@${alias_name}:OWNER/REPOSITORY.git
+Alias:
+  ${alias_name}
+
+Private key:
+  ${key_file}
+
+Public key:
+  ${key_file}.pub
+
+Next steps:
+
+1. Register the public key in GitHub.
+2. Verify authentication:
+   ssh -T git@${alias_name}
+3. Clone using the alias:
+   git clone git@${alias_name}:OWNER/REPOSITORY.git
+4. Enter the cloned repository and configure the Git author:
+   codevilot git-author
+
+For curl | bash:
+  curl -fsSL https://raw.githubusercontent.com/codevilot/cli/main/entry.sh \\
+    | bash -s -- git-author
 
 The alias "${alias_name}" is resolved by the ~/.ssh/config file
 on the machine where the git command is executed.
 EOF
 }
 
+github_ssh_handle_deprecated_author_options() {
+    local skipped=0
+    [[ "$GITHUB_SSH_AUTHOR_OPTIONS" == "1" ]] || return 0
+
+    cat >&2 <<'EOF'
+WARNING: Git author options in github-ssh are deprecated.
+Use the separate git-author command instead.
+EOF
+
+    if [[ -z "$GITHUB_SSH_NAME" || -z "$GITHUB_SSH_EMAIL" || -z "$GITHUB_SSH_SCOPE" ]]; then
+        cat <<'EOF'
+
+[3/3] Git author
+      Skipped: incomplete deprecated Git author options
+EOF
+        return 0
+    fi
+
+    if [[ "$GITHUB_SSH_SCOPE" == "local" ]] && ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        cat <<'EOF'
+
+[3/3] Git author
+      Skipped: current directory is not a Git repository
+
+Git local author configuration was skipped because the current
+directory is not a Git repository.
+
+After cloning, run:
+  curl -fsSL https://raw.githubusercontent.com/codevilot/cli/main/entry.sh | bash -s -- git-author
+EOF
+        skipped=1
+    else
+        git_author_apply "$GITHUB_SSH_NAME" "$GITHUB_SSH_EMAIL" "$GITHUB_SSH_SCOPE" "" "$GITHUB_SSH_NON_INTERACTIVE" "$DRY_RUN"
+        cat <<EOF
+
+[3/3] Git author
+      Configured: ${GITHUB_SSH_SCOPE}
+EOF
+    fi
+
+    if [[ "$skipped" == "1" ]]; then
+        printf '\nCompleted with one optional step skipped.\n'
+    fi
+}
+
 github_ssh_main() {
     github_ssh_parse_args "$@"
     github_ssh_collect_inputs
 
+    cat <<EOF
+[1/3] SSH key
+EOF
     github_ssh_prepare_key "$GITHUB_SSH_KEY_FILE"
+    printf '      Ready: %s\n\n' "$GITHUB_SSH_KEY_FILE"
+
+    cat <<EOF
+[2/3] SSH config
+EOF
     github_ssh_write_config "$GITHUB_SSH_ALIAS" "$GITHUB_SSH_KEY_FILE"
-    github_ssh_configure_git "$GITHUB_SSH_SCOPE" "$GITHUB_SSH_NAME" "$GITHUB_SSH_EMAIL"
+    printf '      Alias: %s\n' "$GITHUB_SSH_ALIAS"
+
+    github_ssh_handle_deprecated_author_options
     github_ssh_print_public_key "${GITHUB_SSH_KEY_FILE}.pub"
 
     if [[ "$GITHUB_SSH_RUN_TEST" == "1" ]]; then
-        github_ssh_test_auth "$GITHUB_SSH_ALIAS"
+        github_ssh_test_run "$GITHUB_SSH_ALIAS" "${GITHUB_SSH_KEY_FILE}.pub" "$DRY_RUN"
     elif [[ "$GITHUB_SSH_NON_INTERACTIVE" != "1" ]]; then
         if confirm "Run GitHub SSH authentication test now?" "n"; then
-            github_ssh_test_auth "$GITHUB_SSH_ALIAS"
+            github_ssh_test_run "$GITHUB_SSH_ALIAS" "${GITHUB_SSH_KEY_FILE}.pub" "$DRY_RUN"
         fi
     fi
 
-    github_ssh_final_notes "$GITHUB_SSH_ALIAS"
-    success "github-ssh configuration complete."
+    github_ssh_final_notes "$GITHUB_SSH_ALIAS" "$GITHUB_SSH_KEY_FILE"
+    success "GitHub SSH setup completed successfully."
 }
