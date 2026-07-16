@@ -14,6 +14,7 @@ REQUIRED_FILES=(
     "commands/git-author.sh"
     "commands/github-ssh-test.sh"
     "commands/git-origin.sh"
+    "commands/wifi-survey.sh"
 )
 
 debug() {
@@ -132,6 +133,8 @@ load_modules() {
     . "$TEMP_DIR/commands/github-ssh-test.sh"
     # shellcheck source=commands/git-origin.sh
     . "$TEMP_DIR/commands/git-origin.sh"
+    # shellcheck source=commands/wifi-survey.sh
+    . "$TEMP_DIR/commands/wifi-survey.sh"
 }
 
 show_help() {
@@ -147,6 +150,7 @@ Available commands:
   git-author         Configure Git commit author
   github-ssh-test    Verify GitHub SSH authentication
   git-origin         Update repository origin SSH alias
+  wifi-survey        Show Linux Wi-Fi channel utilization
   help               Show help
   version            Show CLI version
 
@@ -193,8 +197,9 @@ write_menu() {
 
 
   1) GitHub
-  2) Show help
-  3) Show version
+  2) Network
+  3) Show help
+  4) Show version
   0) Exit
 
 EOF
@@ -214,6 +219,22 @@ write_github_menu() {
   2) Verify GitHub SSH authentication
   3) Configure commit author only
   4) Update repository origin
+  0) Back
+
+EOF
+    } | write_to_tty
+}
+
+write_network_menu() {
+    {
+        ui_bold "codevilot CLI"
+        printf '\n\n'
+        ui_cyan "Network"
+        printf '\n\n'
+        ui_cyan "Select a command:"
+        cat <<'EOF'
+
+  1) Wi-Fi channel utilization
   0) Back
 
 EOF
@@ -243,10 +264,13 @@ show_menu() {
                 show_github_menu || return $?
                 ;;
             2)
+                show_network_menu || return $?
+                ;;
+            3)
                 show_help
                 return 0
                 ;;
-            3)
+            4)
                 show_version
                 return 0
                 ;;
@@ -304,6 +328,34 @@ show_github_menu() {
     done
 }
 
+show_network_menu() {
+    local selection
+
+    while true; do
+        if ! write_network_menu; then
+            print_interactive_unavailable
+            return 1
+        fi
+        selection="$(read_menu_selection)" || return 1
+        case "$selection" in
+            1)
+                wifi_survey_main
+                return $?
+                ;;
+            0)
+                return 0
+                ;;
+            *)
+                if [[ -n "${CODEVILOT_TTY_OUTPUT_FILE:-}" ]]; then
+                    printf 'Invalid selection: %s\n' "$selection" >>"$CODEVILOT_TTY_OUTPUT_FILE"
+                else
+                    printf 'Invalid selection: %s\n' "$selection" >"${CODEVILOT_TTY_PATH:-/dev/tty}"
+                fi
+                ;;
+        esac
+    done
+}
+
 dispatch() {
     local command_name="${1:-}"
 
@@ -326,6 +378,10 @@ dispatch() {
         git-origin)
             shift
             git_origin_main "$@"
+            ;;
+        wifi-survey|wifi-channel|wifi-cu)
+            shift
+            wifi_survey_main "$@"
             ;;
         help|-h|--help)
             show_help

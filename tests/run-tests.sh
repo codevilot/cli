@@ -295,6 +295,7 @@ test_entry_downloads_required_files() {
     setup_case "download-required"
     output="$(run_entry help)"
     printf '%s\n' "$output" | grep -Fq "github-ssh-test"
+    printf '%s\n' "$output" | grep -Fq "wifi-survey"
 }
 
 test_download_failure_exits() {
@@ -311,6 +312,15 @@ test_menu_runs_without_args() {
     CODEVILOT_TTY_INPUT_FILE="$TTY_INPUT" CODEVILOT_TTY_OUTPUT_FILE="$TTY_OUTPUT" run_entry >/dev/null
     assert_file_contains "$TTY_OUTPUT" "Select a category:"
     assert_file_contains "$TTY_OUTPUT" "1) GitHub"
+    assert_file_contains "$TTY_OUTPUT" "2) Network"
+}
+
+test_network_submenu_displays() {
+    setup_case "menu-network"
+    printf '2\n0\n0\n' >"$TTY_INPUT"
+    CODEVILOT_TTY_INPUT_FILE="$TTY_INPUT" CODEVILOT_TTY_OUTPUT_FILE="$TTY_OUTPUT" run_entry >/dev/null
+    assert_file_contains "$TTY_OUTPUT" "Network"
+    assert_file_contains "$TTY_OUTPUT" "Wi-Fi channel utilization"
 }
 
 test_github_submenu_displays() {
@@ -464,6 +474,34 @@ test_github_ssh_test_rejected() {
     assert_file_contains "$CASE_DIR/err" "GitHub rejected the SSH key."
 }
 
+test_wifi_survey_file_formats_table() {
+    setup_case "wifi-survey-file"
+    survey_file="$CASE_DIR/survey.txt"
+    cat >"$survey_file" <<'EOF'
+Survey data from wlan0
+	in use: 0 ms ago
+	frequency:			5180 MHz [in use]
+	noise:				-95 dBm
+	channel active time:		102345 ms
+	channel busy time:		68342 ms
+	channel receive time:		31234 ms
+	channel transmit time:		14567 ms
+Survey data from wlan0
+	frequency:			5200 MHz
+	noise:				-92 dBm
+	channel active time:		100000 ms
+	channel busy time:		25000 ms
+	channel receive time:		10000 ms
+	channel transmit time:		5000 ms
+EOF
+    output="$(run_entry wifi-survey --file "$survey_file" --in-use)"
+    printf '%s\n' "$output" | grep -Fq "IFACE"
+    printf '%s\n' "$output" | grep -Fq "wlan0"
+    printf '%s\n' "$output" | grep -Fq "5180"
+    printf '%s\n' "$output" | grep -Fq "66.8%"
+    ! printf '%s\n' "$output" | grep -Fq "5200"
+}
+
 test_git_origin_alias_update() {
     setup_case "git-origin"
     repo="$CASE_DIR/repo"
@@ -506,6 +544,7 @@ run_test "required lib and command files download" test_entry_downloads_required
 run_test "download failure exits" test_download_failure_exits
 run_test "no-argument menu displays new commands" test_menu_runs_without_args
 run_test "GitHub submenu displays GitHub commands" test_github_submenu_displays
+run_test "Network submenu displays network commands" test_network_submenu_displays
 run_test "invalid menu input reprompts" test_invalid_menu_reprompts
 run_test "unknown command exits with code 2" test_unknown_command_exit_code
 run_test "temporary directory is cleaned up" test_temp_cleanup
@@ -523,6 +562,7 @@ run_test "existing SSH key menu can reuse key" test_existing_key_interactive_men
 run_test "same alias does not duplicate block" test_no_duplicate_alias
 run_test "github-ssh-test parses GitHub success message" test_github_ssh_test_success
 run_test "github-ssh-test explains rejected key" test_github_ssh_test_rejected
+run_test "wifi-survey formats saved survey data" test_wifi_survey_file_formats_table
 run_test "git-origin changes github.com URL to alias URL" test_git_origin_alias_update
 run_test "dry-run changes no user files" test_dry_run_no_file_changes
 run_test "SSH config and key permissions are set" test_permissions

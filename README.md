@@ -225,6 +225,37 @@ git remote set-url origin git@github-nam:OWNER/REPOSITORY.git
 - Downloaded module paths are restricted to expected relative paths under the Raw base URL.
 - `--dry-run` does not modify user files.
 
+## `wifi-survey`
+
+`wifi-survey` is Linux-only. It uses `iw survey dump` and prints a readable table with channel busy/utilization percentages.
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/codevilot/cli/main/entry.sh \
+  | bash -s -- wifi-survey --interface wlan0 --in-use
+```
+
+Listen on CH36 without joining an AP:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/codevilot/cli/main/entry.sh \
+  | bash -s -- wifi-survey --interface wlan0 --monitor --channel 36
+```
+
+Set 5180 MHz with 80 MHz width and center frequency 5210:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/codevilot/cli/main/entry.sh \
+  | bash -s -- wifi-survey --interface wlan0 --freq 5180 --width 80 --center-freq1 5210
+```
+
+Example output:
+
+```text
+IFACE      FREQ      IN_USE  NOISE    BUSY       RX         TX         ACTIVE_MS  BUSY_MS
+---------- --------- ------- -------- ---------- ---------- ---------- ---------- ----------
+wlan0      5180      yes     -95 dBm  66.8%      30.5%      14.2%      102345     68342
+```
+
 ## Tests
 
 Run:
