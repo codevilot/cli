@@ -502,6 +502,18 @@ EOF
     ! printf '%s\n' "$output" | grep -Fq "5200"
 }
 
+test_wifi_survey_watch_options_parse() {
+    setup_case "wifi-survey-watch-parse"
+    output="$(
+        SCRIPT_DIR="$REPO_ROOT" bash -c '
+            . "$SCRIPT_DIR/commands/wifi-survey.sh"
+            wifi_survey_parse_args --interface wlan0 --watch 2 --all --count 1 --no-clear
+            printf "%s %s %s %s %s\n" "$WIFI_SURVEY_IFACE" "$WIFI_SURVEY_WATCH" "$WIFI_SURVEY_INTERVAL" "$WIFI_SURVEY_ALL" "$WIFI_SURVEY_COUNT"
+        '
+    )"
+    assert_eq "wlan0 1 2 1 1" "$output"
+}
+
 test_git_origin_alias_update() {
     setup_case "git-origin"
     repo="$CASE_DIR/repo"
@@ -563,6 +575,7 @@ run_test "same alias does not duplicate block" test_no_duplicate_alias
 run_test "github-ssh-test parses GitHub success message" test_github_ssh_test_success
 run_test "github-ssh-test explains rejected key" test_github_ssh_test_rejected
 run_test "wifi-survey formats saved survey data" test_wifi_survey_file_formats_table
+run_test "wifi-survey parses watch options" test_wifi_survey_watch_options_parse
 run_test "git-origin changes github.com URL to alias URL" test_git_origin_alias_update
 run_test "dry-run changes no user files" test_dry_run_no_file_changes
 run_test "SSH config and key permissions are set" test_permissions

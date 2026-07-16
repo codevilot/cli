@@ -22,6 +22,10 @@ Options:
   --center-freq1 <mhz>      Center frequency for wide channels, for example 5210
   --monitor                 Put the interface in monitor mode before tuning
   --in-use                  Show only the currently active survey entry
+  --all                     Show all survey entries, even in watch mode
+  --watch[=<seconds>]       Refresh in-place until stopped with Ctrl-C
+  --watch <seconds>         Same as --watch=<seconds>
+  --no-clear                Do not clear the screen between watch refreshes
   --file <path>             Read saved iw survey output instead of running iw
   --help                    Show this help
 
@@ -29,6 +33,8 @@ Examples:
   wifi-survey --interface wlan0 --channel 36 --monitor
   wifi-survey --interface wlan0 --freq 5180 --width 80 --center-freq1 5210
   wifi-survey --in-use
+  wifi-survey --interface wlan0 --watch 1
+  wifi-survey --interface wlan0 --watch 1 --all
 EOF
 }
 
@@ -40,6 +46,11 @@ wifi_survey_parse_args() {
     WIFI_SURVEY_CENTER_FREQ1=""
     WIFI_SURVEY_MONITOR=0
     WIFI_SURVEY_IN_USE=0
+    WIFI_SURVEY_ALL=0
+    WIFI_SURVEY_WATCH=0
+    WIFI_SURVEY_INTERVAL=1
+    WIFI_SURVEY_NO_CLEAR=0
+    WIFI_SURVEY_COUNT=0
     WIFI_SURVEY_FILE=""
 
     while [[ $# -gt 0 ]]; do
@@ -77,6 +88,34 @@ wifi_survey_parse_args() {
                 WIFI_SURVEY_IN_USE=1
                 shift
                 ;;
+            --all)
+                WIFI_SURVEY_ALL=1
+                WIFI_SURVEY_IN_USE=0
+                shift
+                ;;
+            --watch)
+                WIFI_SURVEY_WATCH=1
+                if [[ $# -ge 2 && "$2" != -* ]]; then
+                    WIFI_SURVEY_INTERVAL="$2"
+                    shift 2
+                else
+                    shift
+                fi
+                ;;
+            --watch=*)
+                WIFI_SURVEY_WATCH=1
+                WIFI_SURVEY_INTERVAL="${1#--watch=}"
+                shift
+                ;;
+            --no-clear)
+                WIFI_SURVEY_NO_CLEAR=1
+                shift
+                ;;
+            --count)
+                [[ $# -ge 2 ]] || die "--count requires a value"
+                WIFI_SURVEY_COUNT="$2"
+                shift 2
+                ;;
             --file)
                 [[ $# -ge 2 ]] || die "--file requires a value"
                 WIFI_SURVEY_FILE="$2"
@@ -93,6 +132,8 @@ wifi_survey_parse_args() {
     done
 
     [[ -z "$WIFI_SURVEY_CHANNEL" || -z "$WIFI_SURVEY_FREQ" ]] || die "Use either --channel or --freq, not both"
+    [[ "$WIFI_SURVEY_INTERVAL" =~ ^[0-9]+([.][0-9]+)?$ ]] || die "--watch interval must be a number"
+    [[ "$WIFI_SURVEY_COUNT" =~ ^[0-9]+$ ]] || die "--count must be a non-negative integer"
 }
 
 wifi_survey_iw() {
@@ -196,8 +237,44 @@ wifi_survey_print_table() {
     '
 }
 
+wifi_survey_print_header() {
+    local iface="$1" mode="$2"
+    printf 'codevilot wifi-survey | iface=%s | mode=%s | interval=%ss | %s\n\n' \
+        "$iface" "$mode" "$WIFI_SURVEY_INTERVAL" "$(date '+%Y-%m-%d %H:%M:%S')"
+}
+
+wifi_survey_capture() {
+    local iface="$1"
+    wifi_survey_iw dev "$iface" survey dump
+}
+
+wifi_survey_render() {
+    local iface="$1" only_in_use="$2" mode="$3"
+    if [[ "$WIFI_SURVEY_WATCH" == "1" && "$WIFI_SURVEY_NO_CLEAR" != "1" ]]; then
+        printf '\033[H\033[2J'
+    fi
+    if [[ "$WIFI_SURVEY_WATCH" == "1" ]]; then
+        wifi_survey_print_header "$iface" "$mode"
+    fi
+    wifi_survey_capture "$iface" | wifi_survey_print_table "$only_in_use"
+}
+
+wifi_survey_watch_loop() {
+    local iface="$1" only_in_use="$2" mode="$3"
+    local iteration=0
+
+    while true; do
+        wifi_survey_render "$iface" "$only_in_use" "$mode"
+        iteration=$((iteration + 1))
+        if [[ "$WIFI_SURVEY_COUNT" -gt 0 && "$iteration" -ge "$WIFI_SURVEY_COUNT" ]]; then
+            return 0
+        fi
+        sleep "$WIFI_SURVEY_INTERVAL"
+    done
+}
+
 wifi_survey_main() {
-    local iface
+    local iface only_in_use mode
     wifi_survey_parse_args "$@"
 
     if [[ -n "$WIFI_SURVEY_FILE" ]]; then
@@ -232,5 +309,18 @@ wifi_survey_main() {
         fi
     fi
 
-    wifi_survey_iw dev "$iface" survey dump | wifi_survey_print_table "$WIFI_SURVEY_IN_USE"
+    only_in_use="$WIFI_SURVEY_IN_USE"
+    mode="all"
+    if [[ "$WIFI_SURVEY_WATCH" == "1" && "$WIFI_SURVEY_ALL" != "1" ]]; then
+        only_in_use=1
+    fi
+    if [[ "$only_in_use" == "1" ]]; then
+        mode="active"
+    fi
+
+    if [[ "$WIFI_SURVEY_WATCH" == "1" ]]; then
+        wifi_survey_watch_loop "$iface" "$only_in_use" "$mode"
+    else
+        wifi_survey_render "$iface" "$only_in_use" "$mode"
+    fi
 }

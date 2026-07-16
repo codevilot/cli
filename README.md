@@ -241,6 +241,20 @@ curl -fsSL https://raw.githubusercontent.com/codevilot/cli/main/entry.sh \
   | bash -s -- wifi-survey --interface wlan0 --monitor --channel 36
 ```
 
+Monitor continuously without sending repeated GitHub requests:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/codevilot/cli/main/entry.sh \
+  | bash -s -- wifi-survey --interface wlan0 --watch 1
+```
+
+`--watch` defaults to the active survey entry. Show all survey entries instead:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/codevilot/cli/main/entry.sh \
+  | bash -s -- wifi-survey --interface wlan0 --watch 1 --all
+```
+
 Set 5180 MHz with 80 MHz width and center frequency 5210:
 
 ```bash
