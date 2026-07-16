@@ -321,6 +321,8 @@ test_network_submenu_displays() {
     CODEVILOT_TTY_INPUT_FILE="$TTY_INPUT" CODEVILOT_TTY_OUTPUT_FILE="$TTY_OUTPUT" run_entry >/dev/null
     assert_file_contains "$TTY_OUTPUT" "Network"
     assert_file_contains "$TTY_OUTPUT" "Wi-Fi channel utilization"
+    assert_file_contains "$TTY_OUTPUT" "Wi-Fi active utilization watch"
+    assert_file_contains "$TTY_OUTPUT" "Wi-Fi all utilization watch"
 }
 
 test_github_submenu_displays() {

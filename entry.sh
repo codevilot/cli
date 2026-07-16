@@ -235,6 +235,8 @@ write_network_menu() {
         cat <<'EOF'
 
   1) Wi-Fi channel utilization
+  2) Wi-Fi active utilization watch
+  3) Wi-Fi all utilization watch
   0) Back
 
 EOF
@@ -340,6 +342,14 @@ show_network_menu() {
         case "$selection" in
             1)
                 wifi_survey_main
+                return $?
+                ;;
+            2)
+                wifi_survey_main --watch 1 --in-use
+                return $?
+                ;;
+            3)
+                wifi_survey_main --watch 1 --all
                 return $?
                 ;;
             0)
