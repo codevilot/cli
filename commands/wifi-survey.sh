@@ -190,6 +190,25 @@ wifi_survey_print_table() {
             }
             return sprintf("%.1f%%", (value * 100.0) / total)
         }
+        function channel(mhz) {
+            mhz += 0
+            if (mhz == 2484) {
+                return 14
+            }
+            if (mhz >= 2412 && mhz <= 2472) {
+                return int((mhz - 2407) / 5)
+            }
+            if (mhz >= 5000 && mhz <= 5895) {
+                return int((mhz - 5000) / 5)
+            }
+            if (mhz == 5935) {
+                return 2
+            }
+            if (mhz >= 5955 && mhz <= 7115) {
+                return int((mhz - 5950) / 5)
+            }
+            return "-"
+        }
         function emit() {
             if (freq == "" || active == "") {
                 return
@@ -197,17 +216,17 @@ wifi_survey_print_table() {
             if (only_in_use == "1" && in_use != "yes") {
                 return
             }
-            printf "%-10s %-9s %-7s %-8s %-10s %-10s %-10s %-10s %-10s\n", \
-                iface, freq, (in_use == "yes" ? "yes" : "no"), noise, \
+            printf "%-10s %-5s %-9s %-7s %-8s %-10s %-10s %-10s %-10s %-10s\n", \
+                iface, channel(freq), freq, (in_use == "yes" ? "yes" : "no"), noise, \
                 pct(busy, active), pct(rx, active), pct(tx, active), active, busy
             rows++
         }
         BEGIN {
             reset()
-            printf "%-10s %-9s %-7s %-8s %-10s %-10s %-10s %-10s %-10s\n", \
-                "IFACE", "FREQ", "IN_USE", "NOISE", "BUSY", "RX", "TX", "ACTIVE_MS", "BUSY_MS"
-            printf "%-10s %-9s %-7s %-8s %-10s %-10s %-10s %-10s %-10s\n", \
-                "----------", "---------", "-------", "--------", "----------", "----------", "----------", "----------", "----------"
+            printf "%-10s %-5s %-9s %-7s %-8s %-10s %-10s %-10s %-10s %-10s\n", \
+                "IFACE", "CH", "FREQ", "IN_USE", "NOISE", "BUSY", "RX", "TX", "ACTIVE_MS", "BUSY_MS"
+            printf "%-10s %-5s %-9s %-7s %-8s %-10s %-10s %-10s %-10s %-10s\n", \
+                "----------", "-----", "---------", "-------", "--------", "----------", "----------", "----------", "----------", "----------"
         }
         /^Survey data from / {
             emit()

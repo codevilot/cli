@@ -498,7 +498,9 @@ Survey data from wlan0
 EOF
     output="$(run_entry wifi-survey --file "$survey_file" --in-use)"
     printf '%s\n' "$output" | grep -Fq "IFACE"
+    printf '%s\n' "$output" | grep -Fq "CH"
     printf '%s\n' "$output" | grep -Fq "wlan0"
+    printf '%s\n' "$output" | grep -Eq 'wlan0[[:space:]]+36[[:space:]]+5180'
     printf '%s\n' "$output" | grep -Fq "5180"
     printf '%s\n' "$output" | grep -Fq "66.8%"
     ! printf '%s\n' "$output" | grep -Fq "5200"

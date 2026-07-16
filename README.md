@@ -265,9 +265,9 @@ curl -fsSL https://raw.githubusercontent.com/codevilot/cli/main/entry.sh \
 Example output:
 
 ```text
-IFACE      FREQ      IN_USE  NOISE    BUSY       RX         TX         ACTIVE_MS  BUSY_MS
----------- --------- ------- -------- ---------- ---------- ---------- ---------- ----------
-wlan0      5180      yes     -95 dBm  66.8%      30.5%      14.2%      102345     68342
+IFACE      CH    FREQ      IN_USE  NOISE    BUSY       RX         TX         ACTIVE_MS  BUSY_MS
+---------- ----- --------- ------- -------- ---------- ---------- ---------- ---------- ----------
+wlan0      36    5180      yes     -95 dBm  66.8%      30.5%      14.2%      102345     68342
 ```
 
 ## Tests
