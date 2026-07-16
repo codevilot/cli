@@ -314,6 +314,7 @@ test_menu_runs_without_args() {
     assert_file_contains "$TTY_OUTPUT" "Select a category:"
     assert_file_contains "$TTY_OUTPUT" "1) GitHub"
     assert_file_contains "$TTY_OUTPUT" "2) Network"
+    assert_file_contains "$TTY_OUTPUT" "5) Install local command"
 }
 
 test_network_submenu_displays() {

@@ -328,6 +328,7 @@ write_menu() {
   2) Network
   3) Show help
   4) Show version
+  5) Install local command
   0) Exit
 
 EOF
@@ -403,6 +404,10 @@ show_menu() {
             4)
                 show_version
                 return 0
+                ;;
+            5)
+                install_main
+                return $?
                 ;;
             0)
                 return 0
