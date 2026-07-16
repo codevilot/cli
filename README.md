@@ -36,8 +36,23 @@ curl -fsSL https://raw.githubusercontent.com/codevilot/cli/main/entry.sh \
   | bash -s -- version
 ```
 
-- This command does not install the codevilot CLI locally.
-- Each run downloads the current Raw scripts.
+Install a reusable local command:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/codevilot/cli/main/entry.sh \
+  | bash -s -- install
+```
+
+The installer writes files to `~/.local/share/codevilot-cli` and creates `~/.local/bin/codevilot`.
+After `~/.local/bin` is on `PATH`, run:
+
+```bash
+codevilot help
+codevilot wifi-survey --interface wlan0 --watch 1
+```
+
+- The default `curl | bash` run does not install the codevilot CLI locally.
+- Without `install`, each run downloads the current Raw scripts.
 - Required command and lib files are downloaded into a temporary directory.
 - Temporary CLI files are deleted when the process exits.
 - SSH keys and Git config written by `github-ssh` are kept as the command result.

@@ -87,6 +87,7 @@ setup_case() {
 create_raw_tree() {
     local raw_root="$1"
     mkdir -p "$raw_root/lib" "$raw_root/commands"
+    cp "$REPO_ROOT"/entry.sh "$raw_root/entry.sh"
     cp "$REPO_ROOT"/lib/*.sh "$raw_root/lib/"
     cp "$REPO_ROOT"/commands/*.sh "$raw_root/commands/"
 }
@@ -356,6 +357,20 @@ test_temp_cleanup() {
     assert_eq "0" "$count"
 }
 
+test_install_creates_local_command() {
+    setup_case "install-local-command"
+    install_dir="$CASE_DIR/install/share/codevilot-cli"
+    bin_dir="$CASE_DIR/install/bin"
+    output="$(run_entry install --install-dir "$install_dir" --bin-dir "$bin_dir")"
+    printf '%s\n' "$output" | grep -Fq "codevilot installed."
+    [[ -x "$bin_dir/codevilot" ]]
+    [[ -f "$install_dir/entry.sh" ]]
+    [[ -f "$install_dir/commands/wifi-survey.sh" ]]
+    help_output="$("$bin_dir/codevilot" help)"
+    printf '%s\n' "$help_output" | grep -Fq "Available commands:"
+    printf '%s\n' "$help_output" | grep -Fq "wifi-survey"
+}
+
 test_github_ssh_home_success() {
     setup_case "github-ssh-home"
     output="$(run_entry github-ssh --alias github-codevilot --email namhundred@naver.com --non-interactive)"
@@ -564,6 +579,7 @@ run_test "Network submenu displays network commands" test_network_submenu_displa
 run_test "invalid menu input reprompts" test_invalid_menu_reprompts
 run_test "unknown command exits with code 2" test_unknown_command_exit_code
 run_test "temporary directory is cleaned up" test_temp_cleanup
+run_test "install creates local codevilot command" test_install_creates_local_command
 run_test "home directory github-ssh completes SSH setup" test_github_ssh_home_success
 run_test "github-ssh local scope outside repo skips Git author with zero exit" test_github_ssh_local_scope_outside_git_skips_zero
 run_test "github-ssh configures commit author by default when interactive" test_github_ssh_interactive_configures_author_by_default

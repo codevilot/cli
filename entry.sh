@@ -4,6 +4,7 @@ set -u
 CODEVILOT_REF="${CODEVILOT_REF:-main}"
 CODEVILOT_RAW_BASE_URL="${CODEVILOT_RAW_BASE_URL:-https://raw.githubusercontent.com/codevilot/cli/${CODEVILOT_REF}}"
 CODEVILOT_DEBUG="${CODEVILOT_DEBUG:-}"
+CODEVILOT_LOCAL_MODE="${CODEVILOT_LOCAL_MODE:-0}"
 TEMP_DIR=""
 
 REQUIRED_FILES=(
@@ -80,6 +81,15 @@ validate_relative_path() {
     esac
 }
 
+entry_script_dir() {
+    local source="${BASH_SOURCE[0]}"
+    case "$source" in
+        /*) ;;
+        *) source="$PWD/$source" ;;
+    esac
+    cd -P "$(dirname "$source")" >/dev/null 2>&1 && pwd
+}
+
 validate_downloaded_file() {
     local file="$1"
     [[ -f "$file" ]] || {
@@ -94,6 +104,20 @@ validate_downloaded_file() {
         print_error "Downloaded file failed Bash syntax check: $file"
         return 1
     }
+}
+
+validate_local_tree() {
+    local relative_path file
+
+    validate_downloaded_file "$TEMP_DIR/entry.sh" || exit 1
+    for relative_path in "${REQUIRED_FILES[@]}"; do
+        validate_relative_path "$relative_path" || {
+            print_error "Invalid required file path: $relative_path"
+            exit 1
+        }
+        file="$TEMP_DIR/$relative_path"
+        validate_downloaded_file "$file" || exit 1
+    done
 }
 
 download_required_files() {
@@ -144,8 +168,10 @@ codevilot 0.1.0
 Usage:
   curl -fsSL https://raw.githubusercontent.com/codevilot/cli/main/entry.sh | bash
   curl -fsSL https://raw.githubusercontent.com/codevilot/cli/main/entry.sh | bash -s -- <command> [options]
+  codevilot <command> [options]
 
 Available commands:
+  install            Install codevilot as a local command
   github-ssh         Configure a personal GitHub SSH identity
   git-author         Configure Git commit author
   github-ssh-test    Verify GitHub SSH authentication
@@ -157,6 +183,108 @@ Available commands:
 Global options:
   -h, --help       Show help
   -v, --version    Show CLI version
+EOF
+}
+
+install_usage() {
+    cat <<'EOF'
+Usage:
+  curl -fsSL https://raw.githubusercontent.com/codevilot/cli/main/entry.sh | bash -s -- install [options]
+
+Install codevilot as a local command.
+
+Options:
+  --install-dir <path>      Install files here (default: ~/.local/share/codevilot-cli)
+  --bin-dir <path>          Write codevilot wrapper here (default: ~/.local/bin)
+  --help                    Show this help
+EOF
+}
+
+install_parse_args() {
+    INSTALL_DIR="${CODEVILOT_INSTALL_DIR:-$HOME/.local/share/codevilot-cli}"
+    INSTALL_BIN_DIR="${CODEVILOT_BIN_DIR:-$HOME/.local/bin}"
+
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --install-dir)
+                [[ $# -ge 2 ]] || {
+                    print_error "--install-dir requires a value"
+                    exit 1
+                }
+                INSTALL_DIR="$2"
+                shift 2
+                ;;
+            --bin-dir)
+                [[ $# -ge 2 ]] || {
+                    print_error "--bin-dir requires a value"
+                    exit 1
+                }
+                INSTALL_BIN_DIR="$2"
+                shift 2
+                ;;
+            --help|-h)
+                install_usage
+                exit 0
+                ;;
+            *)
+                print_error "Unknown option for install: $1"
+                exit 2
+                ;;
+        esac
+    done
+}
+
+install_entry_file() {
+    local destination="$1"
+    if [[ "$CODEVILOT_LOCAL_MODE" == "1" && -f "$TEMP_DIR/entry.sh" ]]; then
+        cp "$TEMP_DIR/entry.sh" "$destination"
+    else
+        download_file "${CODEVILOT_RAW_BASE_URL%/}/entry.sh" "$destination" || {
+            print_error "Failed to download: entry.sh"
+            exit 1
+        }
+    fi
+    validate_downloaded_file "$destination" || exit 1
+}
+
+install_main() {
+    local relative_path source_file destination wrapper entry_path_quoted
+    install_parse_args "$@"
+
+    mkdir -p "$INSTALL_DIR/lib" "$INSTALL_DIR/commands" "$INSTALL_BIN_DIR"
+
+    install_entry_file "$INSTALL_DIR/entry.sh"
+    chmod 755 "$INSTALL_DIR/entry.sh"
+
+    for relative_path in "${REQUIRED_FILES[@]}"; do
+        source_file="$TEMP_DIR/$relative_path"
+        destination="$INSTALL_DIR/$relative_path"
+        validate_downloaded_file "$source_file" || exit 1
+        mkdir -p "$(dirname "$destination")"
+        cp "$source_file" "$destination"
+        chmod 644 "$destination"
+    done
+
+    wrapper="$INSTALL_BIN_DIR/codevilot"
+    entry_path_quoted="$(printf '%q' "$INSTALL_DIR/entry.sh")"
+    {
+        printf '#!/usr/bin/env bash\n'
+        printf 'export CODEVILOT_LOCAL_MODE=1\n'
+        printf 'exec bash %s "$@"\n' "$entry_path_quoted"
+    } >"$wrapper"
+    chmod 755 "$wrapper"
+
+    cat <<EOF
+codevilot installed.
+
+Command:
+  ${wrapper}
+
+If this directory is not on PATH, add it:
+  export PATH="${INSTALL_BIN_DIR}:\$PATH"
+
+Try:
+  codevilot help
 EOF
 }
 
@@ -373,6 +501,10 @@ dispatch() {
         "")
             show_menu
             ;;
+        install)
+            shift
+            install_main "$@"
+            ;;
         github-ssh)
             shift
             github_ssh_main "$@"
@@ -409,6 +541,15 @@ dispatch() {
 
 main() {
     check_bash
+
+    if [[ "$CODEVILOT_LOCAL_MODE" == "1" ]]; then
+        TEMP_DIR="$(entry_script_dir)"
+        validate_local_tree
+        load_modules
+        dispatch "$@"
+        return
+    fi
+
     check_downloader
 
     TEMP_DIR="$(mktemp -d "${TMPDIR:-/tmp}/codevilot.XXXXXX")"
