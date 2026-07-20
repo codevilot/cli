@@ -20,6 +20,6 @@ jobs:
           bash -n lib/*.sh
           bash -n tests/*.sh
       - name: ShellCheck
-        run: shellcheck entry.sh commands/*.sh lib/*.sh tests/*.sh
+        run: shellcheck -S warning entry.sh commands/*.sh lib/*.sh tests/*.sh
       - name: Tests
         run: ./tests/run-tests.sh

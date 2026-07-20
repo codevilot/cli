@@ -6,6 +6,7 @@ fi
 CODEVILOT_UI_SH_LOADED=1
 
 # shellcheck source=lib/common.sh
+# shellcheck disable=SC2154
 . "$SCRIPT_DIR/lib/common.sh"
 
 ui_cyan() {

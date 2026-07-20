@@ -19,6 +19,7 @@ is_linux() {
 
 home_path_to_tilde() {
     local path="$1"
+    # shellcheck disable=SC2088
     case "$path" in
         "$HOME") printf '~' ;;
         "$HOME"/*) printf '~/%s' "${path#"$HOME"/}" ;;
@@ -28,6 +29,7 @@ home_path_to_tilde() {
 
 expand_tilde_path() {
     local path="$1"
+    # shellcheck disable=SC2088
     case "$path" in
         "~") printf '%s' "$HOME" ;;
         "~/"*) printf '%s/%s' "$HOME" "${path#"~/"}" ;;

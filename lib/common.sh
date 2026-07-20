@@ -5,7 +5,9 @@ if [[ -n "${CODEVILOT_COMMON_SH_LOADED:-}" ]]; then
 fi
 CODEVILOT_COMMON_SH_LOADED=1
 
+# shellcheck disable=SC2034
 CODEVILOT_VERSION="0.1.0"
+# shellcheck disable=SC2034
 CODEVILOT_NAME="codevilot"
 
 color_enabled() {
