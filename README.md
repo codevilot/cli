@@ -36,6 +36,15 @@ curl -fsSL https://raw.githubusercontent.com/codevilot/cli/main/entry.sh \
   | bash -s -- version
 ```
 
+Force Korean menu text:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/codevilot/cli/main/entry.sh | lang=ko bash
+
+curl -fsSL https://raw.githubusercontent.com/codevilot/cli/main/entry.sh \
+  | bash -s -- lang=ko
+```
+
 Install a reusable local command:
 
 ```bash

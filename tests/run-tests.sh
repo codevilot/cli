@@ -347,6 +347,25 @@ test_info_submenu_displays() {
     assert_file_contains "$TTY_OUTPUT" "Show version"
 }
 
+test_korean_menu_lang_override() {
+    setup_case "menu-ko"
+    printf '3\n0\n0\n' >"$TTY_INPUT"
+    lang=ko CODEVILOT_TTY_INPUT_FILE="$TTY_INPUT" CODEVILOT_TTY_OUTPUT_FILE="$TTY_OUTPUT" run_entry >/dev/null
+    assert_file_contains "$TTY_OUTPUT" "카테고리를 선택하세요:"
+    assert_file_contains "$TTY_OUTPUT" "2) 네트워크"
+    assert_file_contains "$TTY_OUTPUT" "3) 정보"
+    assert_file_contains "$TTY_OUTPUT" "1) 도움말 보기"
+    assert_file_contains "$TTY_OUTPUT" "2) 버전 보기"
+}
+
+test_korean_menu_lang_argument() {
+    setup_case "menu-ko-arg"
+    printf '0\n' >"$TTY_INPUT"
+    CODEVILOT_TTY_INPUT_FILE="$TTY_INPUT" CODEVILOT_TTY_OUTPUT_FILE="$TTY_OUTPUT" run_entry lang=ko >/dev/null
+    assert_file_contains "$TTY_OUTPUT" "카테고리를 선택하세요:"
+    assert_file_contains "$TTY_OUTPUT" "4) 로컬 명령 설치"
+}
+
 test_invalid_menu_reprompts() {
     setup_case "menu-invalid"
     printf '9\n0\n' >"$TTY_INPUT"
@@ -588,6 +607,8 @@ run_test "no-argument menu displays new commands" test_menu_runs_without_args
 run_test "GitHub submenu displays GitHub commands" test_github_submenu_displays
 run_test "Network submenu displays network commands" test_network_submenu_displays
 run_test "Info submenu displays help and version" test_info_submenu_displays
+run_test "Korean menu is enabled with lang=ko" test_korean_menu_lang_override
+run_test "Korean menu is enabled with lang=ko argument" test_korean_menu_lang_argument
 run_test "invalid menu input reprompts" test_invalid_menu_reprompts
 run_test "unknown command exits with code 2" test_unknown_command_exit_code
 run_test "temporary directory is cleaned up" test_temp_cleanup

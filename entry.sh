@@ -28,6 +28,81 @@ print_error() {
     printf 'ERROR: %s\n' "$*" >&2
 }
 
+codevilot_lang() {
+    local requested="${lang:-${CODEVILOT_LANG:-}}"
+    case "$requested" in
+        ko|en)
+            printf '%s' "$requested"
+            return 0
+            ;;
+    esac
+
+    case "${LC_ALL:-${LC_MESSAGES:-${LANG:-}}}" in
+        ko_KR*|ko-KR*|ko.*|ko)
+            printf 'ko'
+            ;;
+        *)
+            printf 'en'
+            ;;
+    esac
+}
+
+msg() {
+    local key="$1"
+    if [[ "$(codevilot_lang)" == "ko" ]]; then
+        case "$key" in
+            select_category) printf '카테고리를 선택하세요:' ;;
+            select_command) printf '명령을 선택하세요:' ;;
+            enter_selection) printf '번호 입력: ' ;;
+            github) printf 'GitHub' ;;
+            network) printf '네트워크' ;;
+            info) printf '정보' ;;
+            install_local) printf '로컬 명령 설치' ;;
+            github_ssh_setup) printf 'GitHub SSH 설정' ;;
+            github_ssh_verify) printf 'GitHub SSH 인증 확인' ;;
+            git_author) printf '커밋 작성자 설정' ;;
+            git_origin) printf '저장소 origin 변경' ;;
+            wifi_channel) printf 'Wi-Fi 채널 사용률' ;;
+            wifi_active_watch) printf '사용 중 Wi-Fi 사용률 감시' ;;
+            wifi_all_watch) printf '전체 Wi-Fi 사용률 감시' ;;
+            show_help) printf '도움말 보기' ;;
+            show_version) printf '버전 보기' ;;
+            back) printf '뒤로' ;;
+            exit) printf '종료' ;;
+            invalid_selection) printf '잘못된 선택' ;;
+            interactive_unavailable) printf '대화형 터미널을 사용할 수 없습니다.' ;;
+            run_explicit) printf '명령을 직접 지정해서 실행하세요. 예:' ;;
+            *) printf '%s' "$key" ;;
+        esac
+        return 0
+    fi
+
+    case "$key" in
+        select_category) printf 'Select a category:' ;;
+        select_command) printf 'Select a command:' ;;
+        enter_selection) printf 'Enter selection: ' ;;
+        github) printf 'GitHub' ;;
+        network) printf 'Network' ;;
+        info) printf 'Info' ;;
+        install_local) printf 'Install local command' ;;
+        github_ssh_setup) printf 'GitHub SSH setup' ;;
+        github_ssh_verify) printf 'Verify GitHub SSH authentication' ;;
+        git_author) printf 'Configure commit author only' ;;
+        git_origin) printf 'Update repository origin' ;;
+        wifi_channel) printf 'Wi-Fi channel utilization' ;;
+        wifi_active_watch) printf 'Wi-Fi active utilization watch' ;;
+        wifi_all_watch) printf 'Wi-Fi all utilization watch' ;;
+        show_help) printf 'Show help' ;;
+        show_version) printf 'Show version' ;;
+        back) printf 'Back' ;;
+        exit) printf 'Exit' ;;
+        invalid_selection) printf 'Invalid selection' ;;
+        interactive_unavailable) printf 'Interactive terminal is unavailable.' ;;
+        run_explicit) printf 'Run a command explicitly, for example:' ;;
+        *) printf '%s' "$key" ;;
+    esac
+}
+
 cleanup() {
     if [[ -n "${TEMP_DIR:-}" && -d "$TEMP_DIR" ]]; then
         rm -rf -- "$TEMP_DIR"
@@ -294,11 +369,10 @@ show_version() {
 
 read_menu_selection() {
     local value
-    if ! value="$(read_from_tty "Enter selection: ")"; then
-        print_error "Interactive terminal is unavailable."
+    if ! value="$(read_from_tty "$(msg enter_selection)")"; then
+        print_error "$(msg interactive_unavailable)"
+        printf '%s\n\n' "$(msg run_explicit)" >&2
         cat >&2 <<'EOF'
-Run a command explicitly, for example:
-
 curl -fsSL <entry-url> | bash -s -- github-ssh --help
 EOF
         return 1
@@ -320,17 +394,14 @@ write_menu() {
     {
         ui_bold "codevilot CLI"
         printf '\n\n'
-        ui_cyan "Select a category:"
-        cat <<'EOF'
-
-
-  1) GitHub
-  2) Network
-  3) Info
-  4) Install local command
-  0) Exit
-
-EOF
+        ui_cyan "$(msg select_category)"
+        printf '\n\n\n'
+        printf '  1) %s\n' "$(msg github)"
+        printf '  2) %s\n' "$(msg network)"
+        printf '  3) %s\n' "$(msg info)"
+        printf '  4) %s\n' "$(msg install_local)"
+        printf '  0) %s\n' "$(msg exit)"
+        printf '\n'
     } | write_to_tty
 }
 
@@ -338,18 +409,16 @@ write_github_menu() {
     {
         ui_bold "codevilot CLI"
         printf '\n\n'
-        ui_cyan "GitHub"
+        ui_cyan "$(msg github)"
         printf '\n\n'
-        ui_cyan "Select a command:"
-        cat <<'EOF'
-
-  1) GitHub SSH setup
-  2) Verify GitHub SSH authentication
-  3) Configure commit author only
-  4) Update repository origin
-  0) Back
-
-EOF
+        ui_cyan "$(msg select_command)"
+        printf '\n\n'
+        printf '  1) %s\n' "$(msg github_ssh_setup)"
+        printf '  2) %s\n' "$(msg github_ssh_verify)"
+        printf '  3) %s\n' "$(msg git_author)"
+        printf '  4) %s\n' "$(msg git_origin)"
+        printf '  0) %s\n' "$(msg back)"
+        printf '\n'
     } | write_to_tty
 }
 
@@ -357,17 +426,15 @@ write_network_menu() {
     {
         ui_bold "codevilot CLI"
         printf '\n\n'
-        ui_cyan "Network"
+        ui_cyan "$(msg network)"
         printf '\n\n'
-        ui_cyan "Select a command:"
-        cat <<'EOF'
-
-  1) Wi-Fi channel utilization
-  2) Wi-Fi active utilization watch
-  3) Wi-Fi all utilization watch
-  0) Back
-
-EOF
+        ui_cyan "$(msg select_command)"
+        printf '\n\n'
+        printf '  1) %s\n' "$(msg wifi_channel)"
+        printf '  2) %s\n' "$(msg wifi_active_watch)"
+        printf '  3) %s\n' "$(msg wifi_all_watch)"
+        printf '  0) %s\n' "$(msg back)"
+        printf '\n'
     } | write_to_tty
 }
 
@@ -375,24 +442,21 @@ write_info_menu() {
     {
         ui_bold "codevilot CLI"
         printf '\n\n'
-        ui_cyan "Info"
+        ui_cyan "$(msg info)"
         printf '\n\n'
-        ui_cyan "Select a command:"
-        cat <<'EOF'
-
-  1) Show help
-  2) Show version
-  0) Back
-
-EOF
+        ui_cyan "$(msg select_command)"
+        printf '\n\n'
+        printf '  1) %s\n' "$(msg show_help)"
+        printf '  2) %s\n' "$(msg show_version)"
+        printf '  0) %s\n' "$(msg back)"
+        printf '\n'
     } | write_to_tty
 }
 
 print_interactive_unavailable() {
-    print_error "Interactive terminal is unavailable."
+    print_error "$(msg interactive_unavailable)"
+    printf '%s\n\n' "$(msg run_explicit)" >&2
     cat >&2 <<'EOF'
-Run a command explicitly, for example:
-
 curl -fsSL <entry-url> | bash -s -- github-ssh --help
 EOF
 }
@@ -425,9 +489,9 @@ show_menu() {
                 ;;
             *)
                 if [[ -n "${CODEVILOT_TTY_OUTPUT_FILE:-}" ]]; then
-                    printf 'Invalid selection: %s\n' "$selection" >>"$CODEVILOT_TTY_OUTPUT_FILE"
+                    printf '%s: %s\n' "$(msg invalid_selection)" "$selection" >>"$CODEVILOT_TTY_OUTPUT_FILE"
                 else
-                    printf 'Invalid selection: %s\n' "$selection" >"${CODEVILOT_TTY_PATH:-/dev/tty}"
+                    printf '%s: %s\n' "$(msg invalid_selection)" "$selection" >"${CODEVILOT_TTY_PATH:-/dev/tty}"
                 fi
                 ;;
         esac
@@ -465,9 +529,9 @@ show_github_menu() {
                 ;;
             *)
                 if [[ -n "${CODEVILOT_TTY_OUTPUT_FILE:-}" ]]; then
-                    printf 'Invalid selection: %s\n' "$selection" >>"$CODEVILOT_TTY_OUTPUT_FILE"
+                    printf '%s: %s\n' "$(msg invalid_selection)" "$selection" >>"$CODEVILOT_TTY_OUTPUT_FILE"
                 else
-                    printf 'Invalid selection: %s\n' "$selection" >"${CODEVILOT_TTY_PATH:-/dev/tty}"
+                    printf '%s: %s\n' "$(msg invalid_selection)" "$selection" >"${CODEVILOT_TTY_PATH:-/dev/tty}"
                 fi
                 ;;
         esac
@@ -501,9 +565,9 @@ show_network_menu() {
                 ;;
             *)
                 if [[ -n "${CODEVILOT_TTY_OUTPUT_FILE:-}" ]]; then
-                    printf 'Invalid selection: %s\n' "$selection" >>"$CODEVILOT_TTY_OUTPUT_FILE"
+                    printf '%s: %s\n' "$(msg invalid_selection)" "$selection" >>"$CODEVILOT_TTY_OUTPUT_FILE"
                 else
-                    printf 'Invalid selection: %s\n' "$selection" >"${CODEVILOT_TTY_PATH:-/dev/tty}"
+                    printf '%s: %s\n' "$(msg invalid_selection)" "$selection" >"${CODEVILOT_TTY_PATH:-/dev/tty}"
                 fi
                 ;;
         esac
@@ -533,9 +597,9 @@ show_info_menu() {
                 ;;
             *)
                 if [[ -n "${CODEVILOT_TTY_OUTPUT_FILE:-}" ]]; then
-                    printf 'Invalid selection: %s\n' "$selection" >>"$CODEVILOT_TTY_OUTPUT_FILE"
+                    printf '%s: %s\n' "$(msg invalid_selection)" "$selection" >>"$CODEVILOT_TTY_OUTPUT_FILE"
                 else
-                    printf 'Invalid selection: %s\n' "$selection" >"${CODEVILOT_TTY_PATH:-/dev/tty}"
+                    printf '%s: %s\n' "$(msg invalid_selection)" "$selection" >"${CODEVILOT_TTY_PATH:-/dev/tty}"
                 fi
                 ;;
         esac
@@ -589,6 +653,13 @@ dispatch() {
 
 main() {
     check_bash
+
+    case "${1:-}" in
+        lang=ko|lang=en)
+            lang="${1#lang=}"
+            shift
+            ;;
+    esac
 
     if [[ "$CODEVILOT_LOCAL_MODE" == "1" ]]; then
         TEMP_DIR="$(entry_script_dir)"
