@@ -326,9 +326,8 @@ write_menu() {
 
   1) GitHub
   2) Network
-  3) Show help
-  4) Show version
-  5) Install local command
+  3) Info
+  4) Install local command
   0) Exit
 
 EOF
@@ -372,6 +371,23 @@ EOF
     } | write_to_tty
 }
 
+write_info_menu() {
+    {
+        ui_bold "codevilot CLI"
+        printf '\n\n'
+        ui_cyan "Info"
+        printf '\n\n'
+        ui_cyan "Select a command:"
+        cat <<'EOF'
+
+  1) Show help
+  2) Show version
+  0) Back
+
+EOF
+    } | write_to_tty
+}
+
 print_interactive_unavailable() {
     print_error "Interactive terminal is unavailable."
     cat >&2 <<'EOF'
@@ -398,14 +414,9 @@ show_menu() {
                 show_network_menu || return $?
                 ;;
             3)
-                show_help
-                return 0
+                show_info_menu || return $?
                 ;;
             4)
-                show_version
-                return 0
-                ;;
-            5)
                 install_main
                 return $?
                 ;;
@@ -484,6 +495,38 @@ show_network_menu() {
             3)
                 wifi_survey_main --watch 1 --all
                 return $?
+                ;;
+            0)
+                return 0
+                ;;
+            *)
+                if [[ -n "${CODEVILOT_TTY_OUTPUT_FILE:-}" ]]; then
+                    printf 'Invalid selection: %s\n' "$selection" >>"$CODEVILOT_TTY_OUTPUT_FILE"
+                else
+                    printf 'Invalid selection: %s\n' "$selection" >"${CODEVILOT_TTY_PATH:-/dev/tty}"
+                fi
+                ;;
+        esac
+    done
+}
+
+show_info_menu() {
+    local selection
+
+    while true; do
+        if ! write_info_menu; then
+            print_interactive_unavailable
+            return 1
+        fi
+        selection="$(read_menu_selection)" || return 1
+        case "$selection" in
+            1)
+                show_help
+                return 0
+                ;;
+            2)
+                show_version
+                return 0
                 ;;
             0)
                 return 0

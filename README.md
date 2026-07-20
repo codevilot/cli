@@ -105,11 +105,12 @@ curl -fsSL https://raw.githubusercontent.com/codevilot/cli/main/entry.sh | bash
 ```text
 codevilot CLI
 
-Select a command:
+Select a category:
 
-  1) GitHub SSH setup
-  2) Show help
-  3) Show version
+  1) GitHub
+  2) Network
+  3) Info
+  4) Install local command
   0) Exit
 
 Enter selection:

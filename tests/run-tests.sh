@@ -314,7 +314,8 @@ test_menu_runs_without_args() {
     assert_file_contains "$TTY_OUTPUT" "Select a category:"
     assert_file_contains "$TTY_OUTPUT" "1) GitHub"
     assert_file_contains "$TTY_OUTPUT" "2) Network"
-    assert_file_contains "$TTY_OUTPUT" "5) Install local command"
+    assert_file_contains "$TTY_OUTPUT" "3) Info"
+    assert_file_contains "$TTY_OUTPUT" "4) Install local command"
 }
 
 test_network_submenu_displays() {
@@ -335,6 +336,15 @@ test_github_submenu_displays() {
     assert_file_contains "$TTY_OUTPUT" "GitHub SSH setup"
     assert_file_contains "$TTY_OUTPUT" "Configure commit author only"
     assert_file_contains "$TTY_OUTPUT" "Verify GitHub SSH authentication"
+}
+
+test_info_submenu_displays() {
+    setup_case "menu-info"
+    printf '3\n0\n0\n' >"$TTY_INPUT"
+    CODEVILOT_TTY_INPUT_FILE="$TTY_INPUT" CODEVILOT_TTY_OUTPUT_FILE="$TTY_OUTPUT" run_entry >/dev/null
+    assert_file_contains "$TTY_OUTPUT" "Info"
+    assert_file_contains "$TTY_OUTPUT" "Show help"
+    assert_file_contains "$TTY_OUTPUT" "Show version"
 }
 
 test_invalid_menu_reprompts() {
@@ -577,6 +587,7 @@ run_test "download failure exits" test_download_failure_exits
 run_test "no-argument menu displays new commands" test_menu_runs_without_args
 run_test "GitHub submenu displays GitHub commands" test_github_submenu_displays
 run_test "Network submenu displays network commands" test_network_submenu_displays
+run_test "Info submenu displays help and version" test_info_submenu_displays
 run_test "invalid menu input reprompts" test_invalid_menu_reprompts
 run_test "unknown command exits with code 2" test_unknown_command_exit_code
 run_test "temporary directory is cleaned up" test_temp_cleanup
